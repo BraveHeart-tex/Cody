@@ -1,8 +1,8 @@
-type OtpType = 'totp' | 'hotp' | 'steam';
+export type OtpType = 'totp' | 'hotp' | 'steam';
 
-type Algorithm = 'SHA1' | 'SHA256' | 'SHA512';
+export type Algorithm = 'SHA1' | 'SHA256' | 'SHA512';
 
-export interface OtpAccount {
+export interface OtpAccountRecord {
   // identity
   id: string; // crypto.randomUUID()
   issuer: string; // "GitHub"
@@ -10,7 +10,6 @@ export interface OtpAccount {
 
   // otp config
   type: OtpType; // totp for MVP
-  secret: string;
   algorithm: Algorithm; // default SHA1 (virtually universal)
   digits: 6 | 7 | 8; // default 6
 
@@ -26,4 +25,8 @@ export interface OtpAccount {
   sortOrder: number; // for drag reorder
   createdAt: number; // Date.now()
   lastUsedAt?: number;
+}
+
+export interface OtpAccount extends OtpAccountRecord {
+  secret: string;
 }
