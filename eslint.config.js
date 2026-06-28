@@ -50,7 +50,12 @@ module.exports = defineConfig([
               name: 'react-native-safe-area-context',
               importNames: ['SafeAreaView'],
               message:
-                'Use SafeAreaView from @/components/ui/safe-area-view to avoid jumpy React Navigation layouts.'
+                'Use utilities from Nativewind (p-safe, pt-safe) instead of SafeAreaView.'
+            },
+            {
+              name: 'react-native',
+              importNames: ['Text'],
+              message: 'Use Text from @/components/ui/text instead.'
             }
           ],
           patterns: [
@@ -97,6 +102,30 @@ module.exports = defineConfig([
         {
           selector: 'ImportNamespaceSpecifier',
           message: 'Use named imports instead of namespace imports.'
+        }
+      ]
+    }
+  },
+  {
+    files: ['src/components/ui/text.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native-safe-area-context',
+              importNames: ['SafeAreaView'],
+              message:
+                'Use utilities from Nativewind (p-safe, pt-safe) instead of SafeAreaView.'
+            }
+          ],
+          patterns: [
+            {
+              regex: '^\\.',
+              message: 'Use an absolute import with the @/ alias instead.'
+            }
+          ]
         }
       ]
     }

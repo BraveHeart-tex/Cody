@@ -9,7 +9,7 @@ export default function Index() {
   const { accounts, error, isLoading } = useAccounts();
 
   return (
-    <View className="bg-background flex-1 px-6 py-16">
+    <View className="bg-background py-safe flex-1 px-6">
       <View className="gap-6">
         <View className="gap-2">
           <Text className="text-4xl font-semibold text-neutral-950">Cody</Text>

@@ -5,8 +5,9 @@ import {
 } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { Text } from '@/components/ui/text';
 import { createScannerDraft } from '@/features/totp/model/scanner-drafts';
 import { parseOtpAuthUri } from '@/features/totp/model/parse-otpauth-uri';
 

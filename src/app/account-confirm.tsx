@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
+import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createAccountId } from '@/features/totp/model/account-id';
 import {
