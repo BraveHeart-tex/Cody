@@ -8,7 +8,7 @@ import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { useTotpCountdown } from '@/features/totp/hooks/use-totp-countdown';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { router } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { FlatList, type ListRenderItemInfo, View } from 'react-native';
 
 const ACCOUNT_LIST_BATCH_SIZE = 12;
@@ -16,6 +16,7 @@ const ACCOUNT_LIST_WINDOW_SIZE = 7;
 
 export function AccountList() {
   const { accounts, error, isLoading } = useAccounts();
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
 
   const thirtySecondCountdown = useTotpCountdown(30);
   const sixtySecondCountdown = useTotpCountdown(60);
@@ -31,9 +32,15 @@ export function AccountList() {
         countdown={
           item.period === 60 ? sixtySecondCountdown : thirtySecondCountdown
         }
+        isActive={item.id === activeAccountId}
+        onPress={() => {
+          setActiveAccountId(currentId =>
+            currentId === item.id ? null : item.id
+          );
+        }}
       />
     ),
-    [sixtySecondCountdown, thirtySecondCountdown]
+    [activeAccountId, sixtySecondCountdown, thirtySecondCountdown]
   );
 
   if (isLoading) {

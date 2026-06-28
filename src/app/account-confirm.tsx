@@ -9,6 +9,7 @@ import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createAccountId } from '@/features/totp/model/account-id';
+import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 import {
   deleteScannerDraft,
   getScannerDraft
@@ -49,10 +50,16 @@ export default function AccountConfirmScreen() {
       return;
     }
 
+    const accountId = createAccountId();
     const account: OtpAccount = {
       ...draft,
-      id: createAccountId(),
+      id: accountId,
       label: trimmedLabel,
+      color: getDefaultAccountColor({
+        id: accountId,
+        issuer: draft.issuer,
+        label: trimmedLabel
+      }),
       createdAt: Date.now(),
       sortOrder: 0
     };

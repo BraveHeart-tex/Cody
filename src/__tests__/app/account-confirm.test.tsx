@@ -16,6 +16,7 @@ import {
 import { router } from 'expo-router';
 
 import type { UseAccountsResult } from '@/features/totp/hooks/use-accounts';
+import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
 
 const mockAddAccount = jest.fn<UseAccountsResult['addAccount']>();
@@ -166,6 +167,11 @@ describe('AccountConfirmScreen', () => {
         algorithm: 'SHA1',
         digits: 6,
         period: 30,
+        color: getDefaultAccountColor({
+          id: 'scanned-account-id',
+          issuer: 'GitHub',
+          label: 'edited@example.com'
+        }),
         createdAt: 123456789,
         sortOrder: 0
       });

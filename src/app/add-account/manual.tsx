@@ -10,6 +10,7 @@ import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createAccountId } from '@/features/totp/model/account-id';
+import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 import {
   validateManualAccount,
   type ManualTotpDigits,
@@ -64,8 +65,9 @@ export default function ManualAddAccountScreen() {
       return;
     }
 
+    const accountId = createAccountId();
     const account: OtpAccount = {
-      id: createAccountId(),
+      id: accountId,
       issuer: validation.issuer,
       label: validation.label,
       secret: validation.secret,
@@ -73,6 +75,11 @@ export default function ManualAddAccountScreen() {
       algorithm: 'SHA1',
       digits,
       period,
+      color: getDefaultAccountColor({
+        id: accountId,
+        issuer: validation.issuer,
+        label: validation.label
+      }),
       createdAt: Date.now(),
       sortOrder: 0
     };

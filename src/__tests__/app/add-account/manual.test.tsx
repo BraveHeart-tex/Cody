@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { router } from 'expo-router';
 
 import type { UseAccountsResult } from '@/features/totp/hooks/use-accounts';
+import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 
 const mockAddAccount = jest.fn<UseAccountsResult['addAccount']>();
 
@@ -125,6 +126,11 @@ describe('ManualAddAccountScreen', () => {
         algorithm: 'SHA1',
         digits: 6,
         period: 30,
+        color: getDefaultAccountColor({
+          id: 'manual-account-id',
+          issuer: 'GitHub',
+          label: 'user@example.com'
+        }),
         createdAt: 123456789,
         sortOrder: 0
       });
