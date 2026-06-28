@@ -4,66 +4,66 @@
 @import 'nativewind/theme';
 
 @theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(0 0% 3.9%);
+  --color-background: hsl(240 20% 98%);
+  --color-foreground: hsl(240 12% 8%);
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(0 0% 3.9%);
+  --color-card-foreground: hsl(240 12% 8%);
   --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(0 0% 3.9%);
-  --color-primary: hsl(0 0% 9%);
-  --color-primary-foreground: hsl(0 0% 98%);
-  --color-secondary: hsl(0 0% 96.1%);
-  --color-secondary-foreground: hsl(0 0% 9%);
-  --color-muted: hsl(0 0% 96.1%);
-  --color-muted-foreground: hsl(0 0% 45.1%);
-  --color-accent: hsl(0 0% 96.1%);
-  --color-accent-foreground: hsl(0 0% 9%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(0 0% 98%);
-  --color-border: hsl(0 0% 89.8%);
-  --color-input: hsl(0 0% 89.8%);
-  --color-ring: hsl(0 0% 63%);
-  --color-chart-1: hsl(12 76% 61%);
-  --color-chart-2: hsl(173 58% 39%);
-  --color-chart-3: hsl(197 37% 24%);
-  --color-chart-4: hsl(43 74% 66%);
-  --color-chart-5: hsl(27 87% 67%);
+  --color-popover-foreground: hsl(240 12% 8%);
+  --color-primary: hsl(239 88% 64%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(240 10% 94%);
+  --color-secondary-foreground: hsl(240 9% 16%);
+  --color-muted: hsl(240 10% 94%);
+  --color-muted-foreground: hsl(240 7% 43%);
+  --color-accent: hsl(239 90% 96%);
+  --color-accent-foreground: hsl(239 74% 42%);
+  --color-destructive: hsl(3 78% 57%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-border: hsl(240 9% 88%);
+  --color-input: hsl(240 9% 88%);
+  --color-ring: hsl(239 88% 64%);
+  --color-chart-1: hsl(239 88% 64%);
+  --color-chart-2: hsl(190 74% 42%);
+  --color-chart-3: hsl(156 62% 38%);
+  --color-chart-4: hsl(35 82% 58%);
+  --color-chart-5: hsl(347 74% 59%);
 
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
   /* Hairline border — replaces hairlineWidth() from nativewind/theme.
-     Uses pixelRatio() which is a CSS function polyfilled by NativeWind v5.
-     Available as border-hairline. */
+Uses pixelRatio() which is a CSS function polyfilled by NativeWind v5.
+Available as border-hairline. */
   --border-width-hairline: calc(1 / pixelRatio());
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: hsl(0 0% 3.9%);
-    --color-foreground: hsl(0 0% 98%);
-    --color-card: hsl(0 0% 3.9%);
-    --color-card-foreground: hsl(0 0% 98%);
-    --color-popover: hsl(0 0% 3.9%);
-    --color-popover-foreground: hsl(0 0% 98%);
-    --color-primary: hsl(0 0% 98%);
-    --color-primary-foreground: hsl(0 0% 9%);
-    --color-secondary: hsl(0 0% 14.9%);
-    --color-secondary-foreground: hsl(0 0% 98%);
-    --color-muted: hsl(0 0% 14.9%);
-    --color-muted-foreground: hsl(0 0% 63.9%);
-    --color-accent: hsl(0 0% 14.9%);
-    --color-accent-foreground: hsl(0 0% 98%);
-    --color-destructive: hsl(0 70.9% 59.4%);
-    --color-destructive-foreground: hsl(0 0% 98%);
-    --color-border: hsl(0 0% 14.9%);
-    --color-input: hsl(0 0% 14.9%);
-    --color-ring: hsl(300 0% 45%);
+    --color-background: hsl(240 5% 8%);
+    --color-foreground: hsl(300 4% 89%);
+    --color-card: hsl(240 4% 13%);
+    --color-card-foreground: hsl(300 4% 89%);
+    --color-popover: hsl(240 4% 13%);
+    --color-popover-foreground: hsl(300 4% 89%);
+    --color-primary: hsl(239 100% 88%);
+    --color-primary-foreground: hsl(245 100% 33%);
+    --color-secondary: hsl(240 2% 29%);
+    --color-secondary-foreground: hsl(300 2% 88%);
+    --color-muted: hsl(240 3% 18%);
+    --color-muted-foreground: hsl(247 17% 81%);
+    --color-accent: hsl(239 100% 75%);
+    --color-accent-foreground: hsl(245 100% 30%);
+    --color-destructive: hsl(6 100% 84%);
+    --color-destructive-foreground: hsl(357 100% 22%);
+    --color-border: hsl(246 10% 30%);
+    --color-input: hsl(240 3% 21%);
+    --color-ring: hsl(239 100% 88%);
 
-    --color-chart-1: hsl(220 70% 50%);
-    --color-chart-2: hsl(160 60% 45%);
-    --color-chart-3: hsl(30 80% 55%);
-    --color-chart-4: hsl(280 65% 60%);
-    --color-chart-5: hsl(340 75% 55%);
+    --color-chart-1: hsl(239 100% 82%);
+    --color-chart-2: hsl(190 78% 62%);
+    --color-chart-3: hsl(156 58% 56%);
+    --color-chart-4: hsl(35 88% 68%);
+    --color-chart-5: hsl(347 88% 72%);
   }
 }
 
