@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import { CountdownRing } from '@/features/totp/components/countdown-ring';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import {
   useTotpCountdown,
@@ -141,7 +142,11 @@ const AccountCard = memo(function AccountCard({
               {account.label}
             </CardDescription>
           </View>
-          <CountdownBadge seconds={countdown.remainingSeconds} />
+          <CountdownRing
+            periodEndsAt={countdown.periodEndsAt}
+            periodStartedAt={countdown.periodStartedAt}
+            seconds={countdown.remainingSeconds}
+          />
         </CardHeader>
 
         <CardContent className="px-4">
@@ -153,21 +158,6 @@ const AccountCard = memo(function AccountCard({
     </Pressable>
   );
 });
-
-interface CountdownBadgeProps {
-  seconds: number;
-}
-
-function CountdownBadge({ seconds }: CountdownBadgeProps) {
-  return (
-    // TODO: FE-222 Swap this numeric placeholder for the animated countdown ring.
-    <View className="border-border h-12 w-12 shrink-0 items-center justify-center rounded-full border">
-      <Text className="text-muted-foreground text-sm font-semibold">
-        {seconds}
-      </Text>
-    </View>
-  );
-}
 
 function LoadingList() {
   return (
