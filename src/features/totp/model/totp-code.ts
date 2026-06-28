@@ -1,9 +1,11 @@
 import { generateSync } from 'otplib';
 
+import type { OtpAccount } from '@/src/features/totp/model/totp-account';
+
 export interface GenerateTotpCodeInput {
   secret: string;
   period: 30 | 60;
-  digits: 6 | 8;
+  digits: OtpAccount['digits'];
   // Date.now-compatible Unix timestamp in milliseconds.
   timestamp?: number;
 }
