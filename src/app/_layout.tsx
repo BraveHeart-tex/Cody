@@ -31,9 +31,27 @@ export default function RootLayout() {
     return null;
   }
 
+  const theme = NAV_THEME[scheme];
+
   return (
-    <ThemeProvider value={NAV_THEME[scheme]}>
-      <Stack />
+    <ThemeProvider value={theme}>
+      <Stack
+        screenOptions={{
+          headerShadowVisible: false,
+          headerStyle: {
+            backgroundColor: theme.colors.background
+          },
+          headerTitleStyle: {
+            fontFamily: 'HankenGrotesk_600SemiBold',
+            fontSize: 17
+          },
+          headerTintColor: theme.colors.text,
+          contentStyle: {
+            backgroundColor: theme.colors.background
+          }
+        }}
+      />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <PortalHost />
     </ThemeProvider>
   );
