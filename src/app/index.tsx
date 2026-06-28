@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { CountdownRing } from '@/features/totp/components/countdown-ring';
@@ -57,10 +58,6 @@ export default function Index() {
     <View className="bg-background pt-safe flex-1 px-6">
       <View className="gap-6 pt-6 pb-6">
         <Text className="text-foreground text-4xl font-semibold">Cody</Text>
-
-        <Button onPress={handleAddPress}>
-          <Text>Scan QR Code</Text>
-        </Button>
       </View>
 
       {isLoading ? (
@@ -74,12 +71,18 @@ export default function Index() {
         <FlatList
           className="flex-1"
           contentContainerClassName={
-            accounts.length === 0 ? 'flex-grow pb-safe' : 'gap-3 pb-safe'
+            accounts.length === 0 ? 'flex-grow gap-3 pb-safe' : 'gap-3 pb-safe'
           }
           data={accounts}
           initialNumToRender={ACCOUNT_LIST_BATCH_SIZE}
           keyExtractor={keyExtractor}
           ListFooterComponent={accounts.length > 0 ? ListFooterSpacer : null}
+          ListHeaderComponent={
+            <AccountListHeaderSection
+              accountCount={accounts.length}
+              onAddPress={handleAddPress}
+            />
+          }
           ListEmptyComponent={EmptyState}
           maxToRenderPerBatch={ACCOUNT_LIST_BATCH_SIZE}
           renderItem={renderItem}
@@ -93,6 +96,66 @@ export default function Index() {
 
 function keyExtractor(account: OtpAccount): string {
   return account.id;
+}
+
+interface AccountListHeaderProps {
+  accountCount: number;
+  onAddPress: () => void;
+}
+
+function AccountListHeaderSection(props: AccountListHeaderProps) {
+  return (
+    <View className="gap-5">
+      <AccountSearchInput />
+      <AccountListHeader {...props} />
+    </View>
+  );
+}
+
+function AccountSearchInput() {
+  return (
+    <View className="relative w-full">
+      <View
+        accessibilityElementsHidden
+        className="absolute top-0 left-3 z-10 h-10 justify-center sm:h-9"
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Text className="text-muted-foreground text-base">🔍</Text>
+      </View>
+      <Input
+        accessibilityLabel="Search accounts"
+        className="pl-10"
+        placeholder="Search"
+      />
+    </View>
+  );
+}
+
+function AccountListHeader({
+  accountCount,
+  onAddPress
+}: AccountListHeaderProps) {
+  const title = accountCount > 0 ? `Accounts (${accountCount})` : 'Accounts';
+
+  return (
+    <View className="flex-row items-center justify-between gap-4">
+      <Text className="text-foreground text-xl font-semibold">{title}</Text>
+      <Button
+        accessibilityLabel="Add account"
+        onPress={onAddPress}
+        size="sm"
+        variant="ghost"
+      >
+        <Text
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          ➕
+        </Text>
+        <Text>Add</Text>
+      </Button>
+    </View>
+  );
 }
 
 interface AccountCardProps {
@@ -133,7 +196,7 @@ const AccountCard = memo(function AccountCard({
             <CardTitle className="text-foreground text-lg" numberOfLines={1}>
               {account.issuer || 'Unknown issuer'}
             </CardTitle>
-            <CardDescription className="text-base" numberOfLines={1}>
+            <CardDescription className="text-sm" numberOfLines={1}>
               {account.label}
             </CardDescription>
           </View>
