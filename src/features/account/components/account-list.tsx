@@ -14,7 +14,7 @@ const ACCOUNT_LIST_BATCH_SIZE = 12;
 const ACCOUNT_LIST_WINDOW_SIZE = 7;
 
 export function AccountList() {
-  const { accounts, error, isLoading } = useAccounts();
+  const { accounts, deleteAccount, error, isLoading } = useAccounts();
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
 
   const handleAddPress = useCallback(() => {
@@ -27,15 +27,25 @@ export function AccountList() {
     );
   }, []);
 
+  const handleAccountDelete = useCallback(
+    async (accountId: string) => {
+      await deleteAccount(accountId);
+      setActiveAccountId(null);
+      router.replace('/');
+    },
+    [deleteAccount]
+  );
+
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<OtpAccount>) => (
       <AccountCard
         account={item}
         isActive={item.id === activeAccountId}
+        onDelete={handleAccountDelete}
         onPress={handleAccountPress}
       />
     ),
-    [activeAccountId, handleAccountPress]
+    [activeAccountId, handleAccountDelete, handleAccountPress]
   );
 
   if (isLoading) {
@@ -127,7 +137,7 @@ function ListFooterSpacer() {
 
 function AccountListEmpty() {
   return (
-    <View className="flex-1 justify-center">
+    <View className="flex-1 justify-start">
       {/* TODO: FE-232 Replace this simple card with the polished illustrated empty state. */}
       <StateCard
         description="Scan a QR code or enter a setup key to add your first account."

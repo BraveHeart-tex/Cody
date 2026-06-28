@@ -6,6 +6,7 @@ import {
   render,
   waitFor
 } from '@testing-library/react-native';
+import { Alert, type AlertButton } from 'react-native';
 
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
@@ -65,15 +66,18 @@ jest.mock('@/components/ui/card', () => {
 
 jest.mock('@/components/ui/dropdown-menu', () => {
   const React = require('react');
-  const { View } = require('react-native');
+  const { Pressable, View } = require('react-native');
 
   return {
     DropdownMenu: ({ children }: { children: React.ReactNode }) =>
       React.createElement(View, null, children),
     DropdownMenuContent: ({ children }: { children: React.ReactNode }) =>
       React.createElement(View, null, children),
-    DropdownMenuItem: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(View, null, children),
+    DropdownMenuItem: ({
+      children,
+      ...props
+    }: React.ComponentProps<typeof Pressable>) =>
+      React.createElement(Pressable, props, children),
     DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) =>
       React.createElement(View, null, children)
   };
@@ -147,12 +151,18 @@ describe('AccountCard', () => {
   afterEach(async () => {
     await cleanup();
     mockSetStringAsync.mockReset();
+    jest.restoreAllMocks();
   });
 
   it('hides passcode, dropdown, progress, and timer while collapsed', async () => {
     const { getByText, queryByLabelText, queryByText, queryByTestId } =
       await render(
-        <AccountCard account={account} isActive={false} onPress={jest.fn()} />
+        <AccountCard
+          account={account}
+          isActive={false}
+          onDelete={jest.fn()}
+          onPress={jest.fn()}
+        />
       );
 
     expect(getByText('GitHub')).toBeTruthy();
@@ -166,7 +176,12 @@ describe('AccountCard', () => {
 
   it('shows passcode, dropdown, progress, and timer while active', async () => {
     const { getByLabelText, getByTestId, getByText } = await render(
-      <AccountCard account={account} isActive onPress={jest.fn()} />
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={jest.fn()}
+        onPress={jest.fn()}
+      />
     );
 
     expect(getByText('Passcode')).toBeTruthy();
@@ -182,6 +197,7 @@ describe('AccountCard', () => {
       <AccountCard
         account={{ ...account, label: ' user@example.com ' }}
         isActive={false}
+        onDelete={jest.fn()}
         onPress={jest.fn()}
       />
     );
@@ -194,6 +210,7 @@ describe('AccountCard', () => {
       <AccountCard
         account={{ ...account, issuer: 'GitHub', label: ' ' }}
         isActive={false}
+        onDelete={jest.fn()}
         onPress={jest.fn()}
       />
     );
@@ -206,6 +223,7 @@ describe('AccountCard', () => {
       <AccountCard
         account={{ ...account, issuer: '', label: ' ' }}
         isActive={false}
+        onDelete={jest.fn()}
         onPress={jest.fn()}
       />
     );
@@ -217,7 +235,12 @@ describe('AccountCard', () => {
     mockSetStringAsync.mockResolvedValue(undefined);
 
     const { getByLabelText, getByTestId } = await render(
-      <AccountCard account={account} isActive onPress={jest.fn()} />
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={jest.fn()}
+        onPress={jest.fn()}
+      />
     );
 
     await fireEvent.press(getByTestId('account-card-copy'));
@@ -227,4 +250,90 @@ describe('AccountCard', () => {
     });
     expect(getByLabelText('Passcode copied')).toBeTruthy();
   });
+
+  it('opens a permanent deletion alert without deleting immediately', async () => {
+    const onDelete = jest.fn();
+    const alertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
+
+    const { getByText } = await render(
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={onDelete}
+        onPress={jest.fn()}
+      />
+    );
+
+    await fireEvent.press(getByText('Delete'));
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Delete account?',
+      expect.stringContaining('permanently deletes'),
+      expect.any(Array)
+    );
+    expect(alertSpy.mock.calls[0]?.[1]).toContain('cannot be undone');
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('does not delete when the deletion alert is cancelled', async () => {
+    const onDelete = jest.fn();
+    const alertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
+
+    const { getByText } = await render(
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={onDelete}
+        onPress={jest.fn()}
+      />
+    );
+
+    await fireEvent.press(getByText('Delete'));
+    const cancelButton = getAlertButton(alertSpy, 'Cancel');
+
+    cancelButton.onPress?.();
+
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('deletes the account when deletion is confirmed', async () => {
+    const onDelete = jest.fn();
+    const alertSpy = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
+
+    const { getByText } = await render(
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={onDelete}
+        onPress={jest.fn()}
+      />
+    );
+
+    await fireEvent.press(getByText('Delete'));
+    const deleteButton = getAlertButton(alertSpy, 'Delete');
+
+    deleteButton.onPress?.();
+
+    expect(onDelete).toHaveBeenCalledWith('account-id');
+  });
 });
+
+function getAlertButton(
+  alertSpy: jest.SpiedFunction<typeof Alert.alert>,
+  text: string
+): AlertButton {
+  const buttons = alertSpy.mock.calls[0]?.[2] as AlertButton[] | undefined;
+  const button = buttons?.find(candidate => candidate.text === text);
+
+  if (button == null) {
+    throw new Error(`Missing ${text} alert button`);
+  }
+
+  return button;
+}

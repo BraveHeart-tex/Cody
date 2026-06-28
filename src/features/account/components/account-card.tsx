@@ -32,6 +32,7 @@ import {
   useState
 } from 'react';
 import {
+  Alert,
   Pressable,
   View,
   type GestureResponderEvent,
@@ -50,6 +51,7 @@ import Animated, {
 interface AccountCardProps {
   account: OtpAccount;
   isActive: boolean;
+  onDelete: (accountId: string) => void;
   onPress: (accountId: string) => void;
 }
 
@@ -65,6 +67,7 @@ const DETAILS_EXITING = FadeOut.duration(120).easing(Easing.in(Easing.cubic));
 export const AccountCard = memo(function AccountCard({
   account,
   isActive,
+  onDelete,
   onPress
 }: AccountCardProps) {
   const period = account.period ?? DEFAULT_PERIOD;
@@ -119,7 +122,13 @@ export const AccountCard = memo(function AccountCard({
                   {account.label}
                 </CardDescription>
               </View>
-              {isActive ? <AccountActions /> : null}
+              {isActive ? (
+                <AccountActions
+                  account={account}
+                  issuer={issuer}
+                  onDelete={onDelete}
+                />
+              ) : null}
             </View>
           </CardHeader>
 
@@ -201,7 +210,7 @@ function AccountCardDetails({
         <View className="w-full min-w-0 flex-1 flex-row items-center">
           <Text className="text-base">Passcode</Text>
           <Text
-            className="text-foreground min-w-0 flex-1 text-center font-mono text-2xl font-semibold"
+            className="text-foreground min-w-0 flex-1 text-center font-mono text-3xl font-semibold tracking-widest!"
             numberOfLines={1}
           >
             {code}
@@ -311,7 +320,33 @@ function AccountInitial({
   );
 }
 
-function AccountActions() {
+function AccountActions({
+  account,
+  issuer,
+  onDelete
+}: {
+  account: OtpAccount;
+  issuer: string;
+  onDelete: (accountId: string) => void;
+}) {
+  const handleDeletePress = useCallback(() => {
+    Alert.alert(
+      'Delete account?',
+      `This permanently deletes ${issuer} (${account.label}) from this device. This cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete',
+          onPress: () => onDelete(account.id),
+          style: 'destructive'
+        }
+      ]
+    );
+  }, [account.id, account.label, issuer, onDelete]);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -323,18 +358,22 @@ function AccountActions() {
           <Icon as={EllipsisIcon} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuItem>
-          <Text>Move</Text>
+      <DropdownMenuContent className="min-w-44 p-1.5">
+        <DropdownMenuItem className="min-h-12 px-3">
+          <Text className="text-base">Move</Text>
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Text>Rename</Text>
+        <DropdownMenuItem className="min-h-12 px-3">
+          <Text className="text-base">Rename</Text>
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Text>Customize</Text>
+        <DropdownMenuItem className="min-h-12 px-3">
+          <Text className="text-base">Customize</Text>
         </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive">
-          <Text>Delete</Text>
+        <DropdownMenuItem
+          className="min-h-12 px-3"
+          onPress={handleDeletePress}
+          variant="destructive"
+        >
+          <Text className="text-base">Delete</Text>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -377,6 +416,10 @@ function areAccountCardPropsEqual(
   }
 
   if (previous.onPress !== next.onPress) {
+    return false;
+  }
+
+  if (previous.onDelete !== next.onDelete) {
     return false;
   }
 
