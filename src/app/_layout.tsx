@@ -48,11 +48,13 @@ export default function RootLayout() {
           headerTintColor: theme.colors.text,
           contentStyle: {
             backgroundColor: theme.colors.background
-          }
+          },
+          headerShown: false
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="scan" options={{ headerShown: false }} />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="scan" />
+        <Stack.Screen name="account-confirm" />
       </Stack>
       <PortalHost />
     </ThemeProvider>

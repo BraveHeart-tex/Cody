@@ -3,7 +3,10 @@ import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createAccountId } from '@/features/totp/model/account-id';
@@ -13,7 +16,6 @@ import {
   type ManualTotpPeriod
 } from '@/features/totp/model/manual-account';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
-import { cn } from '@/lib/utils/cn';
 
 const PERIOD_OPTIONS: ManualTotpPeriod[] = [30, 60];
 const DIGIT_OPTIONS: ManualTotpDigits[] = [6, 8];
@@ -188,74 +190,5 @@ export default function ManualAddAccountScreen() {
         </Text>
       </Button>
     </ScrollView>
-  );
-}
-
-interface FieldProps {
-  children: React.ReactNode;
-  label: string;
-  required?: boolean;
-}
-
-function Field({ children, label, required = false }: FieldProps) {
-  return (
-    <View className="gap-2">
-      <Text className="text-foreground text-sm font-semibold">
-        {label}
-        {required ? (
-          <Text className="text-destructive text-sm font-semibold"> *</Text>
-        ) : null}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
-interface SegmentedControlProps<T extends number> {
-  onSelect: (value: T) => void;
-  options: T[];
-  selectedValue: T;
-  suffix?: string;
-}
-
-function SegmentedControl<T extends number>({
-  onSelect,
-  options,
-  selectedValue,
-  suffix = ''
-}: SegmentedControlProps<T>) {
-  return (
-    <View className="flex-row gap-2">
-      {options.map(option => {
-        const isSelected = option === selectedValue;
-
-        return (
-          <Button
-            accessibilityState={{ selected: isSelected }}
-            className={cn('flex-1', isSelected && 'border-primary')}
-            key={option}
-            variant={isSelected ? 'default' : 'outline'}
-            onPress={() => onSelect(option)}
-          >
-            <Text>
-              {option}
-              {suffix}
-            </Text>
-          </Button>
-        );
-      })}
-    </View>
-  );
-}
-
-interface StatusMessageProps {
-  value: string;
-}
-
-function StatusMessage({ value }: StatusMessageProps) {
-  return (
-    <Text className="bg-destructive text-destructive-foreground rounded-lg px-4 py-3 text-center text-base font-semibold">
-      {value}
-    </Text>
   );
 }

@@ -1,7 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
+import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createAccountId } from '@/features/totp/model/account-id';
@@ -10,7 +14,6 @@ import {
   getScannerDraft
 } from '@/features/totp/model/scanner-drafts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
-import { cn } from '@/lib/utils/cn';
 
 export default function AccountConfirmScreen() {
   const { draftId } = useLocalSearchParams<{ draftId?: string }>();
@@ -19,11 +22,17 @@ export default function AccountConfirmScreen() {
     [draftId]
   );
   const { accounts, addAccount, error, isLoading } = useAccounts();
+  const [label, setLabel] = useState(() => draft?.label ?? '');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const isDuplicate =
     draft != null && accounts.some(account => account.secret === draft.secret);
+  const trimmedLabel = label.trim();
+  const labelError =
+    draft != null && trimmedLabel.length === 0
+      ? 'Enter an account label.'
+      : null;
 
   const handleSave = useCallback(async () => {
     if (draft == null || draftId == null || isLoading || isSaving) {
@@ -36,9 +45,14 @@ export default function AccountConfirmScreen() {
       return;
     }
 
+    if (labelError != null) {
+      return;
+    }
+
     const account: OtpAccount = {
       ...draft,
       id: createAccountId(),
+      label: trimmedLabel,
       createdAt: Date.now(),
       sortOrder: 0
     };
@@ -54,7 +68,16 @@ export default function AccountConfirmScreen() {
     } finally {
       setIsSaving(false);
     }
-  }, [addAccount, draft, draftId, isDuplicate, isLoading, isSaving]);
+  }, [
+    addAccount,
+    draft,
+    draftId,
+    isDuplicate,
+    isLoading,
+    isSaving,
+    labelError,
+    trimmedLabel
+  ]);
 
   if (draft == null) {
     return (
@@ -67,21 +90,30 @@ export default function AccountConfirmScreen() {
             Scan the QR code again to review the account details.
           </Text>
         </View>
-        <PrimaryButton
-          label="Back to Scanner"
-          onPress={() => router.replace('/scan')}
-        />
+        <Button onPress={() => router.replace('/scan')}>
+          <Text>Back to Scanner</Text>
+        </Button>
       </View>
     );
   }
 
   const storageError = error == null ? null : 'Account storage is unavailable.';
-  const statusMessage = saveError ?? storageError;
-  const isSaveDisabled = isLoading || isSaving || isDuplicate;
+  const statusMessage = saveError ?? storageError ?? labelError;
+  const isSaveDisabled =
+    isLoading ||
+    isSaving ||
+    storageError != null ||
+    isDuplicate ||
+    labelError != null;
 
   return (
-    <View className="bg-background flex-1 gap-8 px-6 py-16">
-      <View className="gap-2">
+    <ScrollView
+      className="bg-background flex-1"
+      contentContainerClassName="gap-8 px-6 pt-safe pb-safe"
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <View className="gap-2 pt-6">
         <Text className="text-foreground text-3xl font-semibold">
           Review account
         </Text>
@@ -92,11 +124,22 @@ export default function AccountConfirmScreen() {
 
       <View className="border-border gap-4 rounded-lg border p-4">
         <DetailRow label="Issuer" value={draft.issuer || 'Not provided'} />
-        <DetailRow label="Label" value={draft.label} />
-        <DetailRow label="Type" value={draft.type.toUpperCase()} />
-        <DetailRow label="Algorithm" value={draft.algorithm} />
-        <DetailRow label="Digits" value={String(draft.digits)} />
-        <DetailRow label="Period" value={`${draft.period ?? 30} seconds`} />
+        <Field
+          isInvalid={labelError != null}
+          label="Account label"
+          labelClassName="text-muted-foreground text-sm font-medium"
+          labelTestID="account-label-field-label"
+          required
+        >
+          <Input
+            aria-invalid={labelError != null}
+            accessibilityLabel="Account label"
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={setLabel}
+            value={label}
+          />
+        </Field>
       </View>
 
       {isDuplicate ? (
@@ -105,16 +148,16 @@ export default function AccountConfirmScreen() {
       {statusMessage != null ? <StatusMessage value={statusMessage} /> : null}
 
       <View className="gap-3">
-        <PrimaryButton
-          disabled={isSaveDisabled}
-          label={
-            isSaving ? 'Saving...' : isLoading ? 'Loading...' : 'Save Account'
-          }
-          onPress={handleSave}
-        />
-        <SecondaryButton label="Back" onPress={() => router.back()} />
+        <Button disabled={isSaveDisabled} onPress={handleSave}>
+          <Text>
+            {isSaving ? 'Saving...' : isLoading ? 'Loading...' : 'Save Account'}
+          </Text>
+        </Button>
+        <Button variant="outline" onPress={() => router.back()}>
+          <Text>Cancel</Text>
+        </Button>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -129,62 +172,5 @@ function DetailRow({ label, value }: DetailRowProps) {
       <Text className="text-muted-foreground text-sm font-medium">{label}</Text>
       <Text className="text-foreground text-lg font-semibold">{value}</Text>
     </View>
-  );
-}
-
-interface StatusMessageProps {
-  value: string;
-}
-
-function StatusMessage({ value }: StatusMessageProps) {
-  return (
-    <Text className="bg-destructive text-destructive-foreground rounded-lg px-4 py-3 text-center text-base font-semibold">
-      {value}
-    </Text>
-  );
-}
-
-interface PrimaryButtonProps {
-  disabled?: boolean;
-  label: string;
-  onPress: () => void;
-}
-
-function PrimaryButton({
-  disabled = false,
-  label,
-  onPress
-}: PrimaryButtonProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      className={cn(
-        'items-center rounded-lg px-5 py-3',
-        disabled ? 'bg-muted' : 'bg-primary'
-      )}
-      disabled={disabled}
-      onPress={onPress}
-    >
-      <Text
-        className={cn(
-          'text-base font-semibold',
-          disabled ? 'text-muted-foreground' : 'text-primary-foreground'
-        )}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function SecondaryButton({ label, onPress }: PrimaryButtonProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      className="border-border items-center rounded-lg border px-5 py-3"
-      onPress={onPress}
-    >
-      <Text className="text-foreground text-base font-semibold">{label}</Text>
-    </Pressable>
   );
 }
