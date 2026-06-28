@@ -10,7 +10,6 @@ import { CountdownRing } from '@/features/totp/components/countdown-ring';
 import type { TotpCountdownState } from '@/features/totp/hooks/use-totp-countdown';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { generateTotpCode } from '@/features/totp/model/totp-code';
-import { router } from 'expo-router';
 import { memo, useCallback } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -37,11 +36,8 @@ export const AccountCard = memo(function AccountCard({
     }) || CODE_PLACEHOLDER;
 
   const handlePress = useCallback(() => {
-    router.push({
-      pathname: '/account/[id]',
-      params: { id: account.id }
-    });
-  }, [account.id]);
+    // TODO: Make the card interactive with the new design code will be shown upon click
+  }, []);
 
   return (
     <Pressable
