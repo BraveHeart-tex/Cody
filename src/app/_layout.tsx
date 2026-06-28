@@ -50,8 +50,9 @@ export default function RootLayout() {
             backgroundColor: theme.colors.background
           }
         }}
-      />
-      <Stack.Screen name="index" options={{ headerShown: false }} />
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+      </Stack>
       <PortalHost />
     </ThemeProvider>
   );

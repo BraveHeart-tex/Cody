@@ -56,12 +56,7 @@ export default function Index() {
   return (
     <View className="bg-background pt-safe flex-1 px-6">
       <View className="gap-6 pt-6 pb-6">
-        <View className="gap-2">
-          <Text className="text-foreground text-4xl font-semibold">Cody</Text>
-          <Text className="text-muted-foreground text-base leading-6">
-            Your saved authenticator accounts.
-          </Text>
-        </View>
+        <Text className="text-foreground text-4xl font-semibold">Cody</Text>
 
         <Button onPress={handleAddPress}>
           <Text>Scan QR Code</Text>
