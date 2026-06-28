@@ -3,11 +3,11 @@ import { Slot } from '@rn-primitives/slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { createContext, useContext } from 'react';
 
-import { Platform, Text as RNText, type Role } from 'react-native';
+import { Platform, StyleSheet, Text as RNText, type Role } from 'react-native';
 
 const textVariants = cva(
   cn(
-    'text-foreground text-base',
+    'text-foreground font-sans text-base',
     Platform.select({
       web: 'select-text'
     })
@@ -74,6 +74,7 @@ const TextClassContext = createContext<string | undefined>(undefined);
 function Text({
   className,
   asChild = false,
+  style,
   variant = 'default',
   ...props
 }: React.ComponentProps<typeof RNText> &
@@ -83,15 +84,26 @@ function Text({
   }) {
   const textClass = useContext(TextClassContext);
   const Component = asChild ? Slot : RNText;
+  const resolvedClassName = cn(textVariants({ variant }), textClass, className);
+  const usesMono = resolvedClassName.split(/\s+/).includes('font-mono');
 
   return (
     <Component
-      className={cn(textVariants({ variant }), textClass, className)}
+      className={resolvedClassName}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
+      style={[usesMono && styles.mono, style]}
       {...props}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  mono: {
+    fontFamily: 'JetBrainsMono_600SemiBold',
+    letterSpacing: 1,
+    fontWeight: '600'
+  }
+});
 
 export { Text, TextClassContext };

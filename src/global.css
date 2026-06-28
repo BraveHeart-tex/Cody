@@ -4,6 +4,9 @@
 @import 'nativewind/theme';
 
 @theme {
+  --font-sans: HankenGrotesk_400Regular;
+  --font-mono: JetBrainsMono_600SemiBold;
+
   --color-background: hsl(240 20% 98%);
   --color-foreground: hsl(240 12% 8%);
   --color-card: hsl(0 0% 100%);
