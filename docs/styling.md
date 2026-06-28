@@ -19,5 +19,6 @@ Scroll screens: `pb-safe` on content/footer, not ScrollView.
 ## NativeWind v5
 
 No `tailwind.config.js` — tokens in `global.css` via `@theme`.
+After editing color tokens, run `pnpm theme:generate`.
 No `styled()`, no Babel plugin, no `remapProps`/`cssInterop` unless tier 2/3 above.
 No global `lineHeight` tokens. Use shared Text primitive.

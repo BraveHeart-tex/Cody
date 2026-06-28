@@ -1,1 +1,12 @@
+set -e
+
+if git diff --cached --name-only --diff-filter=ACMR | grep -Eq '^(src/global\.css|scripts/generate-theme\.cjs)$'; then
+  pnpm theme:generate
+  git add src/theme.generated.ts
+fi
+
+if git diff --cached --name-only --diff-filter=ACMR | grep -Eq '^(src/global\.css|src/theme\.generated\.ts|scripts/generate-theme\.cjs)$'; then
+  pnpm theme:check
+fi
+
 pnpm lint-staged
