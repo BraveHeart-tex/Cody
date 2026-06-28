@@ -5,11 +5,13 @@ import {
 } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { createScannerDraft } from '@/features/totp/model/scanner-drafts';
+import { ScannerFrame } from '@/features/scanner/components/scanner-frame';
 import { parseOtpAuthUri } from '@/features/totp/model/parse-otpauth-uri';
+import { createScannerDraft } from '@/features/totp/model/scanner-drafts';
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -88,12 +90,13 @@ export default function ScanScreen() {
       <CenteredState
         action={
           permission.canAskAgain ? (
-            <PrimaryButton label="Try Again" onPress={handleRetryPermission} />
+            <Button onPress={handleRetryPermission}>
+              <Text>Try Again</Text>
+            </Button>
           ) : (
-            <PrimaryButton
-              label="Open Settings"
-              onPress={Linking.openSettings}
-            />
+            <Button onPress={handleRetryPermission}>
+              <Text>Open Settings</Text>
+            </Button>
           )
         }
         description="Camera access is needed to scan authenticator QR codes."
@@ -115,6 +118,9 @@ export default function ScanScreen() {
           style={styles.camera}
         />
       ) : null}
+
+      <ScannerFrame />
+
       <View className="bg-background/70 absolute inset-x-0 bottom-0 gap-4 px-6 pt-6 pb-12">
         <Text className="text-foreground text-center text-lg font-semibold">
           Scan authenticator QR code
@@ -127,7 +133,9 @@ export default function ScanScreen() {
             <Text className="text-destructive text-center text-base font-semibold">
               {error}
             </Text>
-            <PrimaryButton label="Scan Again" onPress={handleRetryScan} />
+            <Button onPress={handleRetryScan}>
+              <Text>Scan Again</Text>
+            </Button>
           </View>
         ) : null}
         {cameraError != null ? (
@@ -161,25 +169,6 @@ function CenteredState({ action, description, title }: CenteredStateProps) {
       </View>
       {action}
     </View>
-  );
-}
-
-interface PrimaryButtonProps {
-  label: string;
-  onPress: () => void;
-}
-
-function PrimaryButton({ label, onPress }: PrimaryButtonProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      className="bg-primary items-center rounded-lg px-5 py-3"
-      onPress={onPress}
-    >
-      <Text className="text-primary-foreground text-base font-semibold">
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
