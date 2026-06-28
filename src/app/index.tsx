@@ -1,16 +1,50 @@
 import { router } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { memo, useCallback, useEffect, useState } from 'react';
+import {
+  FlatList,
+  Pressable,
+  View,
+  type ListRenderItemInfo
+} from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
+import type { OtpAccount } from '@/features/totp/model/totp-account';
+import { generateTotpCode } from '@/features/totp/model/totp-code';
+
+const DEFAULT_PERIOD = 30;
+const CODE_PLACEHOLDER = '------';
+const ACCOUNT_LIST_BATCH_SIZE = 12;
+const ACCOUNT_LIST_WINDOW_SIZE = 7;
+const LOADING_ROW_COUNT = 4;
 
 export default function Index() {
   const { accounts, error, isLoading } = useAccounts();
+  const timestamp = useTimestamp();
+
+  const handleAddPress = useCallback(() => {
+    router.push('/scan');
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<OtpAccount>) => (
+      <AccountCard account={item} timestamp={timestamp} />
+    ),
+    [timestamp]
+  );
 
   return (
-    <View className="bg-background py-safe flex-1 px-6">
-      <View className="gap-6">
+    <View className="bg-background pt-safe flex-1 px-6">
+      <View className="gap-6 pt-6 pb-6">
         <View className="gap-2">
           <Text className="text-foreground text-4xl font-semibold">Cody</Text>
           <Text className="text-muted-foreground text-base leading-6">
@@ -18,55 +52,186 @@ export default function Index() {
           </Text>
         </View>
 
-        <Button onPress={() => router.push('/scan')}>
+        <Button onPress={handleAddPress}>
           <Text>Scan QR Code</Text>
         </Button>
       </View>
 
-      <ScrollView className="mt-8" contentContainerClassName="gap-3 pb-8">
-        {isLoading ? (
-          <StateText value="Loading saved accounts..." />
-        ) : error != null ? (
-          <StateText value="Could not load saved accounts." />
-        ) : accounts.length === 0 ? (
-          <View className="border-border rounded-lg border border-dashed px-5 py-8">
-            <Text className="text-foreground text-center text-lg font-semibold">
-              No accounts yet
-            </Text>
-            <Text className="text-muted-foreground mt-2 text-center text-base leading-6">
-              Scan a TOTP QR code to add your first account.
-            </Text>
-          </View>
-        ) : (
-          accounts.map(account => (
-            <View
-              className="border-border rounded-lg border px-4 py-4"
-              key={account.id}
-            >
-              <Text className="text-foreground text-lg font-semibold">
-                {account.issuer || 'Unknown issuer'}
-              </Text>
-              <Text className="text-muted-foreground mt-1 text-base">
-                {account.label}
-              </Text>
-            </View>
-          ))
-        )}
-      </ScrollView>
+      {isLoading ? (
+        <LoadingList />
+      ) : error != null ? (
+        <StateCard
+          description="Try closing and reopening the app. Your saved secrets were not changed."
+          title="Could not load saved accounts"
+        />
+      ) : (
+        <FlatList
+          className="flex-1"
+          contentContainerClassName={
+            accounts.length === 0 ? 'flex-grow pb-safe' : 'gap-3 pb-safe'
+          }
+          data={accounts}
+          initialNumToRender={ACCOUNT_LIST_BATCH_SIZE}
+          keyExtractor={keyExtractor}
+          ListFooterComponent={accounts.length > 0 ? ListFooterSpacer : null}
+          ListEmptyComponent={EmptyState}
+          maxToRenderPerBatch={ACCOUNT_LIST_BATCH_SIZE}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+          windowSize={ACCOUNT_LIST_WINDOW_SIZE}
+        />
+      )}
     </View>
   );
 }
 
-interface StateTextProps {
-  value: string;
+function useTimestamp(): number {
+  // TODO: FE-221 Replace this local ticker with the shared TOTP countdown hook.
+  const [timestamp, setTimestamp] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setTimestamp(Date.now());
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  return timestamp;
 }
 
-function StateText({ value }: StateTextProps) {
+function keyExtractor(account: OtpAccount): string {
+  return account.id;
+}
+
+interface AccountCardProps {
+  account: OtpAccount;
+  timestamp: number;
+}
+
+const AccountCard = memo(function AccountCard({
+  account,
+  timestamp
+}: AccountCardProps) {
+  const period = account.period ?? DEFAULT_PERIOD;
+  const code =
+    generateTotpCode({
+      secret: account.secret,
+      algorithm: account.algorithm,
+      period,
+      digits: account.digits,
+      timestamp
+    }) || CODE_PLACEHOLDER;
+  const secondsRemaining = getSecondsRemaining(timestamp, period);
+
+  const handlePress = useCallback(() => {
+    router.push({
+      pathname: '/account/[id]',
+      params: { id: account.id }
+    });
+  }, [account.id]);
+
   return (
-    <View className="border-border rounded-lg border px-5 py-6">
-      <Text className="text-muted-foreground text-center text-base font-semibold">
-        {value}
+    <Pressable
+      accessibilityLabel={`Open ${account.issuer || 'Unknown issuer'} account`}
+      accessibilityRole="button"
+      onPress={handlePress}
+    >
+      <Card className="gap-4 rounded-lg px-0 py-4">
+        <CardHeader className="flex-row items-start justify-between gap-4 px-4">
+          <View className="min-w-0 flex-1 gap-1">
+            <CardTitle className="text-foreground text-lg" numberOfLines={1}>
+              {account.issuer || 'Unknown issuer'}
+            </CardTitle>
+            <CardDescription className="text-base" numberOfLines={1}>
+              {account.label}
+            </CardDescription>
+          </View>
+          <CountdownBadge seconds={secondsRemaining} />
+        </CardHeader>
+
+        <CardContent className="px-4">
+          <Text className="text-foreground font-mono text-4xl font-semibold">
+            {code}
+          </Text>
+        </CardContent>
+      </Card>
+    </Pressable>
+  );
+});
+
+interface CountdownBadgeProps {
+  seconds: number;
+}
+
+function CountdownBadge({ seconds }: CountdownBadgeProps) {
+  return (
+    // TODO: FE-222 Swap this numeric placeholder for the animated countdown ring.
+    <View className="border-border h-12 w-12 shrink-0 items-center justify-center rounded-full border">
+      <Text className="text-muted-foreground text-sm font-semibold">
+        {seconds}
       </Text>
     </View>
   );
+}
+
+function LoadingList() {
+  return (
+    <View className="pb-safe gap-3">
+      {Array.from({ length: LOADING_ROW_COUNT }).map((_, index) => (
+        <Card className="gap-4 rounded-lg px-4 py-4" key={index}>
+          <View className="flex-row items-start justify-between gap-4">
+            <View className="flex-1 gap-2">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-4 w-48" />
+            </View>
+            <Skeleton className="h-12 w-12 rounded-full" />
+          </View>
+          <Skeleton className="h-10 w-40" />
+        </Card>
+      ))}
+    </View>
+  );
+}
+
+function ListFooterSpacer() {
+  return <View className="h-8" />;
+}
+
+function EmptyState() {
+  return (
+    <View className="flex-1 justify-center">
+      {/* TODO: FE-232 Replace this simple card with the polished illustrated empty state. */}
+      <StateCard
+        description="Scan a TOTP QR code to add your first account."
+        title="No accounts yet"
+      />
+    </View>
+  );
+}
+
+interface StateCardProps {
+  description: string;
+  title: string;
+}
+
+function StateCard({ description, title }: StateCardProps) {
+  return (
+    <Card className="gap-2 rounded-lg border-dashed px-5 py-8">
+      <CardTitle className="text-foreground text-center text-lg">
+        {title}
+      </CardTitle>
+      <CardDescription className="text-center text-base leading-6">
+        {description}
+      </CardDescription>
+    </Card>
+  );
+}
+
+function getSecondsRemaining(timestamp: number, period: 30 | 60): number {
+  const elapsedSeconds = Math.floor(timestamp / 1000) % period;
+
+  return period - elapsedSeconds;
 }
