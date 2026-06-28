@@ -25,6 +25,12 @@ export function AccountList() {
     router.push('/add-account');
   }, []);
 
+  const handleAccountPress = useCallback((accountId: string) => {
+    setActiveAccountId(currentId =>
+      currentId === accountId ? null : accountId
+    );
+  }, []);
+
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<OtpAccount>) => (
       <AccountCard
@@ -33,14 +39,15 @@ export function AccountList() {
           item.period === 60 ? sixtySecondCountdown : thirtySecondCountdown
         }
         isActive={item.id === activeAccountId}
-        onPress={() => {
-          setActiveAccountId(currentId =>
-            currentId === item.id ? null : item.id
-          );
-        }}
+        onPress={handleAccountPress}
       />
     ),
-    [activeAccountId, sixtySecondCountdown, thirtySecondCountdown]
+    [
+      activeAccountId,
+      handleAccountPress,
+      sixtySecondCountdown,
+      thirtySecondCountdown
+    ]
   );
 
   if (isLoading) {

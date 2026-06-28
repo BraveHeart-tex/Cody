@@ -46,11 +46,11 @@ interface AccountCardProps {
   account: OtpAccount;
   countdown: TotpCountdownState;
   isActive: boolean;
-  onPress: () => void;
+  onPress: (accountId: string) => void;
 }
 
 const DEFAULT_PERIOD = 30;
-const CODE_PLACEHOLDER = '------';
+const CODE_PLACEHOLDER = '******';
 const COPIED_FEEDBACK_MS = 1500;
 const DETAILS_OPEN_ANIMATION_MS = 240;
 const DETAILS_CLOSE_ANIMATION_MS = 180;
@@ -70,18 +70,29 @@ export const AccountCard = memo(function AccountCard({
   const detailsProgress = useSharedValue(isActive ? 1 : 0);
   const [shouldRenderDetails, setShouldRenderDetails] = useState(isActive);
   const [detailsHeight, setDetailsHeight] = useState(0);
-  const code =
-    generateTotpCode({
-      secret: account.secret,
-      algorithm: account.algorithm,
-      period,
-      digits: account.digits,
-      timestamp: countdown.periodStartedAt
-    }) || CODE_PLACEHOLDER;
+  const shouldShowDetails = isActive || shouldRenderDetails;
+  const code = useMemo(() => {
+    if (!shouldShowDetails) {
+      return CODE_PLACEHOLDER;
+    }
 
-  if (isActive && !shouldRenderDetails) {
-    setShouldRenderDetails(true);
-  }
+    return (
+      generateTotpCode({
+        secret: account.secret,
+        algorithm: account.algorithm,
+        period,
+        digits: account.digits,
+        timestamp: countdown.periodStartedAt
+      }) || CODE_PLACEHOLDER
+    );
+  }, [
+    account.algorithm,
+    account.digits,
+    account.secret,
+    countdown.periodStartedAt,
+    period,
+    shouldShowDetails
+  ]);
 
   useEffect(() => {
     if (!isCopied) {
@@ -164,6 +175,14 @@ export const AccountCard = memo(function AccountCard({
     );
   }, []);
 
+  const handlePress = useCallback(() => {
+    if (!isActive) {
+      setShouldRenderDetails(true);
+    }
+
+    onPress(account.id);
+  }, [account.id, isActive, onPress]);
+
   const handleCopyPress = useCallback(
     async (event: GestureResponderEvent) => {
       event.stopPropagation();
@@ -178,7 +197,7 @@ export const AccountCard = memo(function AccountCard({
       accessibilityLabel={`${isActive ? 'Close' : 'Open'} ${issuer} account`}
       accessibilityRole="button"
       accessibilityState={{ expanded: isActive }}
-      onPress={onPress}
+      onPress={handlePress}
     >
       <Card
         className="relative gap-4 rounded-lg border-0 border-t-4 px-0 py-4"
@@ -202,7 +221,7 @@ export const AccountCard = memo(function AccountCard({
           </View>
         </CardHeader>
 
-        {shouldRenderDetails ? (
+        {shouldShowDetails ? (
           <>
             <View
               accessibilityElementsHidden
@@ -217,6 +236,7 @@ export const AccountCard = memo(function AccountCard({
                 countdown={countdown}
                 hasCopiedFeedback={hasCopiedFeedback}
                 issuer={issuer}
+                isMeasuring
                 onCopyPress={handleCopyPress}
                 period={period}
               />
@@ -246,7 +266,7 @@ export const AccountCard = memo(function AccountCard({
       </Card>
     </Pressable>
   );
-});
+}, areAccountCardPropsEqual);
 
 function AccountCardDetails({
   code,
@@ -254,6 +274,7 @@ function AccountCardDetails({
   countdown,
   hasCopiedFeedback,
   issuer,
+  isMeasuring = false,
   onCopyPress,
   period
 }: {
@@ -262,6 +283,7 @@ function AccountCardDetails({
   countdown: TotpCountdownState;
   hasCopiedFeedback: boolean;
   issuer: string;
+  isMeasuring?: boolean;
   onCopyPress: (event: GestureResponderEvent) => void;
   period: number;
 }) {
@@ -284,25 +306,45 @@ function AccountCardDetails({
           }
           onPress={onCopyPress}
           size="icon"
-          testID="account-card-copy"
+          testID={isMeasuring ? undefined : 'account-card-copy'}
           variant="ghost"
         >
           <Icon as={hasCopiedFeedback ? CheckIcon : CopyIcon} />
         </Button>
       </View>
 
-      <AccountCountdownProgress
-        color={color}
-        period={period}
-        periodEndsAt={countdown.periodEndsAt}
-        periodStartedAt={countdown.periodStartedAt}
-        remainingSeconds={countdown.remainingSeconds}
-      />
+      {isMeasuring ? (
+        <StaticCountdownProgress color={color} />
+      ) : (
+        <AccountCountdownProgress
+          color={color}
+          period={period}
+          periodEndsAt={countdown.periodEndsAt}
+          periodStartedAt={countdown.periodStartedAt}
+          remainingSeconds={countdown.remainingSeconds}
+        />
+      )}
 
       <Text className="text-muted-foreground text-center text-xs">
         {countdown.remainingSeconds}s until refresh
       </Text>
     </CardContent>
+  );
+}
+
+function StaticCountdownProgress({ color }: { color: string }) {
+  const progressStyle = useMemo<ViewStyle>(
+    () => ({
+      backgroundColor: color,
+      width: '100%'
+    }),
+    [color]
+  );
+
+  return (
+    <View className="bg-muted h-1 overflow-hidden rounded-full">
+      <View className="h-full rounded-full" style={progressStyle} />
+    </View>
   );
 }
 
@@ -433,4 +475,30 @@ function getRemainingProgress(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function areAccountCardPropsEqual(
+  previous: AccountCardProps,
+  next: AccountCardProps
+): boolean {
+  if (
+    previous.account !== next.account ||
+    previous.isActive !== next.isActive
+  ) {
+    return false;
+  }
+
+  if (previous.onPress !== next.onPress) {
+    return false;
+  }
+
+  if (!previous.isActive && !next.isActive) {
+    return true;
+  }
+
+  return (
+    previous.countdown.periodStartedAt === next.countdown.periodStartedAt &&
+    previous.countdown.periodEndsAt === next.countdown.periodEndsAt &&
+    previous.countdown.remainingSeconds === next.countdown.remainingSeconds
+  );
 }
