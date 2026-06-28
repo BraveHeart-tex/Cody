@@ -1,5 +1,19 @@
-# Expo HAS CHANGED
+# agents.md
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before writing any code.
-SecureStore keys: only alphanumeric, `.`, `-`, `_`; no `:`.
-Checkout docs/styling.md only when needed
+## Expo
+
+SDK 56. Docs at https://docs.expo.dev/versions/v56.0.0/
+Fetch versioned docs only when the task involves:
+
+- A specific Expo SDK module (Camera, SecureStore, Router APIs, etc.)
+- Installation or config (app.json, metro.config, babel.config)
+- A deprecation or API you're uncertain about
+  Do NOT fetch for general React Native, TypeScript, or component logic.
+
+## SecureStore
+
+Keys: alphanumeric, `.`, `-`, `_` only. No `:` or `/`.
+
+## Styling
+
+→ See docs/styling.md (load only when writing or reviewing UI code)

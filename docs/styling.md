@@ -1,29 +1,23 @@
 ## Styling
 
-Use NativeWind `className`, semantic tokens, shared `cn`.
-
-No hardcoded theme values. Inline styles only for animation/native/layout edge cases.
+`className` + semantic tokens + shared `cn`. No hardcoded values.
+Inline styles: Reanimated, `fontVariant`, `textShadow`, layout edge cases only.
 
 ## Safe Area
 
-Expo Router provides provider.
-
-Use `pt-safe` for custom top UI, `pb-safe` for bottom UI, `px-safe` rarely, `p-safe` almost never.
-
-Do not stack `SafeAreaView` with `*-safe`.
-
-Scroll screens: put bottom safe on content/footer.
+Expo Router provides provider — don't add another.
+`pt-safe` top UI, `pb-safe` bottom UI. Never `px-safe`/`p-safe`.
+No `SafeAreaView` + `*-safe` stacking.
+Scroll screens: `pb-safe` on content/footer, not ScrollView.
 
 ## Third-Party
 
-Wrap styled third-party components. No styling bypass imports.
+1. Component spreads `...props` → className works, nothing needed.
+2. Multiple style props → `remapProps`.
+3. Reads `style` directly → `cssInterop` (last resort, has perf cost).
 
-## NativeWind
+## NativeWind v5
 
-Preview-versioned. No `remapProps` / `cssInterop`; use `styled(...)`.
-
-Raw tokens only when classes cannot work.
-
-No global `lineHeight` tokens.
-
-Use shared text primitive.
+No `tailwind.config.js` — tokens in `global.css` via `@theme`.
+No `styled()`, no Babel plugin, no `remapProps`/`cssInterop` unless tier 2/3 above.
+No global `lineHeight` tokens. Use shared Text primitive.
