@@ -7,7 +7,6 @@ import {
   waitFor
 } from '@testing-library/react-native';
 
-import type { TotpCountdownState } from '@/features/totp/hooks/use-totp-countdown';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 const mockSetStringAsync = jest.fn<(passcode: string) => Promise<void>>();
@@ -22,6 +21,15 @@ jest.mock('@/features/account/model/passcode-clipboard', () => ({
 
 jest.mock('@/features/totp/model/totp-code', () => ({
   generateTotpCode: () => '123456'
+}));
+
+jest.mock('@/features/totp/hooks/use-totp-countdown', () => ({
+  useTotpCountdown: () => ({
+    periodStartedAt: 1000,
+    periodEndsAt: 31000,
+    progress: 0.4,
+    remainingSeconds: 18
+  })
 }));
 
 jest.mock('@/components/ui/button', () => {
@@ -93,6 +101,10 @@ jest.mock('@/components/ui/text', () => {
 jest.mock('react-native-reanimated', () => {
   const React = require('react');
   const { View } = require('react-native');
+  const animationBuilder = {
+    duration: () => animationBuilder,
+    easing: () => animationBuilder
+  };
 
   return {
     __esModule: true,
@@ -106,6 +118,9 @@ jest.mock('react-native-reanimated', () => {
       linear: (value: number) => value,
       out: (easing: (value: number) => number) => easing
     },
+    FadeIn: animationBuilder,
+    FadeOut: animationBuilder,
+    LinearTransition: animationBuilder,
     useAnimatedStyle: (styleFactory: () => object) => styleFactory(),
     useSharedValue: (value: number) => ({ value }),
     withTiming: (value: number) => value
@@ -113,13 +128,6 @@ jest.mock('react-native-reanimated', () => {
 });
 
 import { AccountCard } from '@/features/account/components/account-card';
-
-const countdown: TotpCountdownState = {
-  periodStartedAt: 1000,
-  periodEndsAt: 31000,
-  progress: 0.4,
-  remainingSeconds: 18
-};
 
 const account: OtpAccount = {
   id: 'account-id',
@@ -144,12 +152,7 @@ describe('AccountCard', () => {
   it('hides passcode, dropdown, progress, and timer while collapsed', async () => {
     const { getByText, queryByLabelText, queryByText, queryByTestId } =
       await render(
-        <AccountCard
-          account={account}
-          countdown={countdown}
-          isActive={false}
-          onPress={jest.fn()}
-        />
+        <AccountCard account={account} isActive={false} onPress={jest.fn()} />
       );
 
     expect(getByText('GitHub')).toBeTruthy();
@@ -163,12 +166,7 @@ describe('AccountCard', () => {
 
   it('shows passcode, dropdown, progress, and timer while active', async () => {
     const { getByLabelText, getByTestId, getByText } = await render(
-      <AccountCard
-        account={account}
-        countdown={countdown}
-        isActive
-        onPress={jest.fn()}
-      />
+      <AccountCard account={account} isActive onPress={jest.fn()} />
     );
 
     expect(getByText('Passcode')).toBeTruthy();
@@ -183,7 +181,6 @@ describe('AccountCard', () => {
     const { getByText } = await render(
       <AccountCard
         account={{ ...account, label: ' user@example.com ' }}
-        countdown={countdown}
         isActive={false}
         onPress={jest.fn()}
       />
@@ -196,7 +193,6 @@ describe('AccountCard', () => {
     const { getByText } = await render(
       <AccountCard
         account={{ ...account, issuer: 'GitHub', label: ' ' }}
-        countdown={countdown}
         isActive={false}
         onPress={jest.fn()}
       />
@@ -209,7 +205,6 @@ describe('AccountCard', () => {
     const { getByText } = await render(
       <AccountCard
         account={{ ...account, issuer: '', label: ' ' }}
-        countdown={countdown}
         isActive={false}
         onPress={jest.fn()}
       />
@@ -222,12 +217,7 @@ describe('AccountCard', () => {
     mockSetStringAsync.mockResolvedValue(undefined);
 
     const { getByLabelText, getByTestId } = await render(
-      <AccountCard
-        account={account}
-        countdown={countdown}
-        isActive
-        onPress={jest.fn()}
-      />
+      <AccountCard account={account} isActive onPress={jest.fn()} />
     );
 
     await fireEvent.press(getByTestId('account-card-copy'));

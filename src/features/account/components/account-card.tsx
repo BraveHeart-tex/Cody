@@ -15,7 +15,10 @@ import {
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { copyPasscode } from '@/features/account/model/passcode-clipboard';
-import type { TotpCountdownState } from '@/features/totp/hooks/use-totp-countdown';
+import {
+  useTotpCountdown,
+  type TotpPeriod
+} from '@/features/totp/hooks/use-totp-countdown';
 import { getAccountColor } from '@/features/totp/model/account-colors';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { generateTotpCode } from '@/features/totp/model/totp-code';
@@ -32,11 +35,13 @@ import {
   Pressable,
   View,
   type GestureResponderEvent,
-  type LayoutChangeEvent,
   type ViewStyle
 } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withTiming
@@ -44,101 +49,28 @@ import Animated, {
 
 interface AccountCardProps {
   account: OtpAccount;
-  countdown: TotpCountdownState;
   isActive: boolean;
   onPress: (accountId: string) => void;
 }
 
-const DEFAULT_PERIOD = 30;
+const DEFAULT_PERIOD: TotpPeriod = 30;
 const CODE_PLACEHOLDER = '******';
 const COPIED_FEEDBACK_MS = 1500;
-const DETAILS_OPEN_ANIMATION_MS = 240;
-const DETAILS_CLOSE_ANIMATION_MS = 180;
+const CARD_LAYOUT_TRANSITION = LinearTransition.duration(220).easing(
+  Easing.out(Easing.cubic)
+);
+const DETAILS_ENTERING = FadeIn.duration(160).easing(Easing.out(Easing.cubic));
+const DETAILS_EXITING = FadeOut.duration(120).easing(Easing.in(Easing.cubic));
 
 export const AccountCard = memo(function AccountCard({
   account,
-  countdown,
   isActive,
   onPress
 }: AccountCardProps) {
-  const [isCopied, setIsCopied] = useState(false);
   const period = account.period ?? DEFAULT_PERIOD;
   const color = getAccountColor(account);
   const issuer = account.issuer || 'Unknown issuer';
   const initial = getAccountInitial(account);
-  const hasCopiedFeedback = isActive && isCopied;
-  const detailsProgress = useSharedValue(isActive ? 1 : 0);
-  const [shouldRenderDetails, setShouldRenderDetails] = useState(isActive);
-  const [detailsHeight, setDetailsHeight] = useState(0);
-  const shouldShowDetails = isActive || shouldRenderDetails;
-  const code = useMemo(() => {
-    if (!shouldShowDetails) {
-      return CODE_PLACEHOLDER;
-    }
-
-    return (
-      generateTotpCode({
-        secret: account.secret,
-        algorithm: account.algorithm,
-        period,
-        digits: account.digits,
-        timestamp: countdown.periodStartedAt
-      }) || CODE_PLACEHOLDER
-    );
-  }, [
-    account.algorithm,
-    account.digits,
-    account.secret,
-    countdown.periodStartedAt,
-    period,
-    shouldShowDetails
-  ]);
-
-  useEffect(() => {
-    if (!isCopied) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      setIsCopied(false);
-    }, COPIED_FEEDBACK_MS);
-
-    return () => clearTimeout(timeoutId);
-  }, [isCopied]);
-
-  useEffect(() => {
-    if (isActive) {
-      if (detailsHeight <= 0) {
-        detailsProgress.value = 0;
-
-        return;
-      }
-
-      detailsProgress.value = withTiming(1, {
-        duration: DETAILS_OPEN_ANIMATION_MS,
-        easing: Easing.out(Easing.cubic)
-      });
-
-      return;
-    }
-
-    if (!shouldRenderDetails) {
-      detailsProgress.value = 0;
-
-      return;
-    }
-
-    detailsProgress.value = withTiming(0, {
-      duration: DETAILS_CLOSE_ANIMATION_MS,
-      easing: Easing.in(Easing.cubic)
-    });
-
-    const timeoutId = setTimeout(() => {
-      setShouldRenderDetails(false);
-    }, DETAILS_CLOSE_ANIMATION_MS);
-
-    return () => clearTimeout(timeoutId);
-  }, [detailsHeight, detailsProgress, isActive, shouldRenderDetails]);
 
   const cardStyle = useMemo<ViewStyle>(
     () => ({
@@ -154,34 +86,105 @@ export const AccountCard = memo(function AccountCard({
     [color]
   );
 
-  const detailsStyle = useAnimatedStyle<ViewStyle>(
-    () => ({
-      height: detailsHeight * detailsProgress.value,
-      opacity: detailsProgress.value,
-      transform: [{ translateY: (1 - detailsProgress.value) * -6 }]
-    }),
-    [detailsHeight]
+  const handlePress = useCallback(() => {
+    onPress(account.id);
+  }, [account.id, onPress]);
+
+  return (
+    <Animated.View layout={CARD_LAYOUT_TRANSITION}>
+      <Pressable
+        accessibilityLabel={`${isActive ? 'Close' : 'Open'} ${issuer} account`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isActive }}
+        onPress={handlePress}
+      >
+        <Card
+          className="relative gap-4 rounded-lg border-0 border-t-4 px-0 py-4"
+          style={cardStyle}
+        >
+          <CardHeader className="px-4">
+            <View className="flex-row items-center gap-3">
+              <AccountInitial initial={initial} style={iconStyle} />
+              <View className="min-w-0 flex-1 gap-1">
+                <CardTitle
+                  className="text-foreground text-lg"
+                  numberOfLines={1}
+                >
+                  {issuer}
+                </CardTitle>
+                <CardDescription
+                  className="text-sm font-medium tracking-wide"
+                  numberOfLines={1}
+                >
+                  {account.label}
+                </CardDescription>
+              </View>
+              {isActive ? <AccountActions /> : null}
+            </View>
+          </CardHeader>
+
+          {isActive ? (
+            <Animated.View
+              entering={DETAILS_ENTERING}
+              exiting={DETAILS_EXITING}
+              layout={CARD_LAYOUT_TRANSITION}
+            >
+              <AccountCardDetails
+                account={account}
+                color={color}
+                issuer={issuer}
+                period={period}
+              />
+            </Animated.View>
+          ) : null}
+        </Card>
+      </Pressable>
+    </Animated.View>
+  );
+}, areAccountCardPropsEqual);
+
+function AccountCardDetails({
+  account,
+  color,
+  issuer,
+  period
+}: {
+  account: OtpAccount;
+  color: string;
+  issuer: string;
+  period: TotpPeriod;
+}) {
+  const [isCopied, setIsCopied] = useState(false);
+  const countdown = useTotpCountdown(period);
+  const code = useMemo(
+    () =>
+      generateTotpCode({
+        secret: account.secret,
+        algorithm: account.algorithm,
+        period,
+        digits: account.digits,
+        timestamp: countdown.periodStartedAt
+      }) || CODE_PLACEHOLDER,
+    [
+      account.algorithm,
+      account.digits,
+      account.secret,
+      countdown.periodStartedAt,
+      period
+    ]
   );
 
-  const handleDetailsLayout = useCallback((event: LayoutChangeEvent) => {
-    const nextHeight = event.nativeEvent.layout.height;
-
-    if (nextHeight <= 0) {
+  useEffect(() => {
+    if (!isCopied) {
       return;
     }
 
-    setDetailsHeight(currentHeight =>
-      Math.abs(currentHeight - nextHeight) > 0.5 ? nextHeight : currentHeight
-    );
-  }, []);
+    const timeoutId = setTimeout(() => {
+      setIsCopied(false);
+    }, COPIED_FEEDBACK_MS);
 
-  const handlePress = useCallback(() => {
-    if (!isActive) {
-      setShouldRenderDetails(true);
-    }
-
-    onPress(account.id);
-  }, [account.id, isActive, onPress]);
+    return () => clearTimeout(timeoutId);
+  }, [isCopied]);
 
   const handleCopyPress = useCallback(
     async (event: GestureResponderEvent) => {
@@ -192,101 +195,6 @@ export const AccountCard = memo(function AccountCard({
     [code]
   );
 
-  return (
-    <Pressable
-      accessibilityLabel={`${isActive ? 'Close' : 'Open'} ${issuer} account`}
-      accessibilityRole="button"
-      accessibilityState={{ expanded: isActive }}
-      onPress={handlePress}
-    >
-      <Card
-        className="relative gap-4 rounded-lg border-0 border-t-4 px-0 py-4"
-        style={cardStyle}
-      >
-        <CardHeader className="px-4">
-          <View className="flex-row items-center gap-3">
-            <AccountInitial initial={initial} style={iconStyle} />
-            <View className="min-w-0 flex-1 gap-1">
-              <CardTitle className="text-foreground text-lg" numberOfLines={1}>
-                {issuer}
-              </CardTitle>
-              <CardDescription
-                className="text-sm font-medium tracking-wide"
-                numberOfLines={1}
-              >
-                {account.label}
-              </CardDescription>
-            </View>
-            {isActive ? <AccountActions /> : null}
-          </View>
-        </CardHeader>
-
-        {shouldShowDetails ? (
-          <>
-            <View
-              accessibilityElementsHidden
-              className="absolute top-0 right-0 left-0 opacity-0"
-              importantForAccessibility="no-hide-descendants"
-              onLayout={handleDetailsLayout}
-              pointerEvents="none"
-            >
-              <AccountCardDetails
-                code={code}
-                color={color}
-                countdown={countdown}
-                hasCopiedFeedback={hasCopiedFeedback}
-                issuer={issuer}
-                isMeasuring
-                onCopyPress={handleCopyPress}
-                period={period}
-              />
-            </View>
-
-            <Animated.View
-              accessibilityElementsHidden={!isActive}
-              className="overflow-hidden"
-              importantForAccessibility={
-                isActive ? 'auto' : 'no-hide-descendants'
-              }
-              pointerEvents={isActive ? 'auto' : 'none'}
-              style={detailsStyle}
-            >
-              <AccountCardDetails
-                code={code}
-                color={color}
-                countdown={countdown}
-                hasCopiedFeedback={hasCopiedFeedback}
-                issuer={issuer}
-                onCopyPress={handleCopyPress}
-                period={period}
-              />
-            </Animated.View>
-          </>
-        ) : null}
-      </Card>
-    </Pressable>
-  );
-}, areAccountCardPropsEqual);
-
-function AccountCardDetails({
-  code,
-  color,
-  countdown,
-  hasCopiedFeedback,
-  issuer,
-  isMeasuring = false,
-  onCopyPress,
-  period
-}: {
-  code: string;
-  color: string;
-  countdown: TotpCountdownState;
-  hasCopiedFeedback: boolean;
-  issuer: string;
-  isMeasuring?: boolean;
-  onCopyPress: (event: GestureResponderEvent) => void;
-  period: number;
-}) {
   return (
     <CardContent className="gap-4 px-4">
       <View className="flex-row items-center justify-between gap-3">
@@ -302,49 +210,29 @@ function AccountCardDetails({
 
         <Button
           accessibilityLabel={
-            hasCopiedFeedback ? 'Passcode copied' : `Copy ${issuer} passcode`
+            isCopied ? 'Passcode copied' : `Copy ${issuer} passcode`
           }
-          onPress={onCopyPress}
+          onPress={handleCopyPress}
           size="icon"
-          testID={isMeasuring ? undefined : 'account-card-copy'}
+          testID="account-card-copy"
           variant="ghost"
         >
-          <Icon as={hasCopiedFeedback ? CheckIcon : CopyIcon} />
+          <Icon as={isCopied ? CheckIcon : CopyIcon} />
         </Button>
       </View>
 
-      {isMeasuring ? (
-        <StaticCountdownProgress color={color} />
-      ) : (
-        <AccountCountdownProgress
-          color={color}
-          period={period}
-          periodEndsAt={countdown.periodEndsAt}
-          periodStartedAt={countdown.periodStartedAt}
-          remainingSeconds={countdown.remainingSeconds}
-        />
-      )}
+      <AccountCountdownProgress
+        color={color}
+        period={period}
+        periodEndsAt={countdown.periodEndsAt}
+        periodStartedAt={countdown.periodStartedAt}
+        remainingSeconds={countdown.remainingSeconds}
+      />
 
       <Text className="text-muted-foreground text-center text-xs">
         {countdown.remainingSeconds}s until refresh
       </Text>
     </CardContent>
-  );
-}
-
-function StaticCountdownProgress({ color }: { color: string }) {
-  const progressStyle = useMemo<ViewStyle>(
-    () => ({
-      backgroundColor: color,
-      width: '100%'
-    }),
-    [color]
-  );
-
-  return (
-    <View className="bg-muted h-1 overflow-hidden rounded-full">
-      <View className="h-full rounded-full" style={progressStyle} />
-    </View>
   );
 }
 
@@ -492,13 +380,5 @@ function areAccountCardPropsEqual(
     return false;
   }
 
-  if (!previous.isActive && !next.isActive) {
-    return true;
-  }
-
-  return (
-    previous.countdown.periodStartedAt === next.countdown.periodStartedAt &&
-    previous.countdown.periodEndsAt === next.countdown.periodEndsAt &&
-    previous.countdown.remainingSeconds === next.countdown.remainingSeconds
-  );
+  return true;
 }

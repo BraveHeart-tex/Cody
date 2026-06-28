@@ -5,7 +5,6 @@ import { AccountCard } from '@/features/account/components/account-card';
 import { AccountListSkeleton } from '@/features/account/components/account-list-skeleton';
 import { AccountSearchInput } from '@/features/account/components/account-search-input';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
-import { useTotpCountdown } from '@/features/totp/hooks/use-totp-countdown';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -17,9 +16,6 @@ const ACCOUNT_LIST_WINDOW_SIZE = 7;
 export function AccountList() {
   const { accounts, error, isLoading } = useAccounts();
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
-
-  const thirtySecondCountdown = useTotpCountdown(30);
-  const sixtySecondCountdown = useTotpCountdown(60);
 
   const handleAddPress = useCallback(() => {
     router.push('/add-account');
@@ -35,19 +31,11 @@ export function AccountList() {
     ({ item }: ListRenderItemInfo<OtpAccount>) => (
       <AccountCard
         account={item}
-        countdown={
-          item.period === 60 ? sixtySecondCountdown : thirtySecondCountdown
-        }
         isActive={item.id === activeAccountId}
         onPress={handleAccountPress}
       />
     ),
-    [
-      activeAccountId,
-      handleAccountPress,
-      sixtySecondCountdown,
-      thirtySecondCountdown
-    ]
+    [activeAccountId, handleAccountPress]
   );
 
   if (isLoading) {
