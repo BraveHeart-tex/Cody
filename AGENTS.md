@@ -17,3 +17,7 @@ Keys: alphanumeric, `.`, `-`, `_` only. No `:` or `/`.
 ## Styling
 
 → See docs/styling.md (load only when writing or reviewing UI code)
+
+## Tests
+
+Put tests under **tests** dir, never under app dir.

@@ -39,7 +39,7 @@ export default function Index() {
   const sixtySecondCountdown = useTotpCountdown(60);
 
   const handleAddPress = useCallback(() => {
-    router.push('/scan');
+    router.push('/add-account');
   }, []);
 
   const renderItem = useCallback(
@@ -245,7 +245,7 @@ function EmptyState() {
     <View className="flex-1 justify-center">
       {/* TODO: FE-232 Replace this simple card with the polished illustrated empty state. */}
       <StateCard
-        description="Scan a TOTP QR code to add your first account."
+        description="Scan a QR code or enter a setup key to add your first account."
         title="No accounts yet"
       />
     </View>
