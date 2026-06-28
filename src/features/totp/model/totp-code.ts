@@ -1,6 +1,6 @@
 import { generateSync } from 'otplib';
 
-import type { OtpAccount } from '@/src/features/totp/model/totp-account';
+import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 export interface GenerateTotpCodeInput {
   secret: string;

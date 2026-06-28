@@ -7,8 +7,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { createScannerDraft } from '@/src/features/totp/model/scanner-drafts';
-import { parseOtpAuthUri } from '@/src/features/totp/model/parse-otpauth-uri';
+import { createScannerDraft } from '@/features/totp/model/scanner-drafts';
+import { parseOtpAuthUri } from '@/features/totp/model/parse-otpauth-uri';
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();

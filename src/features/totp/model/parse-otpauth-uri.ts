@@ -1,7 +1,4 @@
-import type {
-  Algorithm,
-  OtpAccount
-} from '@/src/features/totp/model/totp-account';
+import type { Algorithm, OtpAccount } from '@/features/totp/model/totp-account';
 
 export type TotpDraft = Pick<
   OtpAccount,

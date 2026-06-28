@@ -2,13 +2,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { useAccounts } from '@/src/features/totp/hooks/use-accounts';
-import { createAccountId } from '@/src/features/totp/model/account-id';
+import { useAccounts } from '@/features/totp/hooks/use-accounts';
+import { createAccountId } from '@/features/totp/model/account-id';
 import {
   deleteScannerDraft,
   getScannerDraft
-} from '@/src/features/totp/model/scanner-drafts';
-import type { OtpAccount } from '@/src/features/totp/model/totp-account';
+} from '@/features/totp/model/scanner-drafts';
+import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 export default function AccountConfirmScreen() {
   const { draftId } = useLocalSearchParams<{ draftId?: string }>();

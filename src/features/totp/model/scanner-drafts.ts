@@ -1,6 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 
-import type { TotpDraft } from '@/src/features/totp/model/parse-otpauth-uri';
+import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
 
 const MAX_SCANNER_DRAFTS = 10;
 const drafts = new Map<string, TotpDraft>();

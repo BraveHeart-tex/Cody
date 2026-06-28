@@ -50,7 +50,7 @@ module.exports = defineConfig([
               name: 'react-native-safe-area-context',
               importNames: ['SafeAreaView'],
               message:
-                'Use SafeAreaView from @/src/components/ui/safe-area-view to avoid jumpy React Navigation layouts.'
+                'Use SafeAreaView from @/components/ui/safe-area-view to avoid jumpy React Navigation layouts.'
             }
           ],
           patterns: [

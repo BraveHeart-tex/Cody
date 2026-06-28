@@ -1,13 +1,15 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
-import { useAccounts } from '@/src/features/totp/hooks/use-accounts';
+import { Button } from '@/components/ui/button';
+import { Text } from '@/components/ui/text';
+import { useAccounts } from '@/features/totp/hooks/use-accounts';
 
 export default function Index() {
   const { accounts, error, isLoading } = useAccounts();
 
   return (
-    <View className="flex-1 bg-white px-6 py-16">
+    <View className="bg-background flex-1 px-6 py-16">
       <View className="gap-6">
         <View className="gap-2">
           <Text className="text-4xl font-semibold text-neutral-950">Cody</Text>
@@ -16,15 +18,9 @@ export default function Index() {
           </Text>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          className="items-center rounded-lg bg-orange-500 px-6 py-3"
-          onPress={() => router.push('/scan')}
-        >
-          <Text className="text-base font-semibold text-white">
-            Scan QR Code
-          </Text>
-        </Pressable>
+        <Button onPress={() => router.push('/scan')}>
+          <Text>Scan QR Code</Text>
+        </Button>
       </View>
 
       <ScrollView className="mt-8" contentContainerClassName="gap-3 pb-8">

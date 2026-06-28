@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { OtpAccount } from '@/src/features/totp/model/totp-account';
+import type { OtpAccount } from '@/features/totp/model/totp-account';
 import {
   deleteAccountRecord,
   deleteSecret,
@@ -8,7 +8,7 @@ import {
   setAccountIndex,
   setAccountRecord,
   setSecret
-} from '@/src/features/totp/storage/totp-storage';
+} from '@/features/totp/storage/totp-storage';
 
 export type AddAccountInput = OtpAccount;
 

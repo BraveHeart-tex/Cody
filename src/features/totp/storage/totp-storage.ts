@@ -6,7 +6,7 @@ import type {
   OtpAccount,
   OtpAccountRecord,
   OtpType
-} from '@/src/features/totp/model/totp-account';
+} from '@/features/totp/model/totp-account';
 
 const OTP_TYPES = new Set<OtpType>(['totp', 'hotp', 'steam']);
 const ALGORITHMS = new Set<Algorithm>(['SHA1', 'SHA256', 'SHA512']);
