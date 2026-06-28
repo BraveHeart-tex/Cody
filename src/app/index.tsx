@@ -12,8 +12,8 @@ export default function Index() {
     <View className="bg-background py-safe flex-1 px-6">
       <View className="gap-6">
         <View className="gap-2">
-          <Text className="text-4xl font-semibold text-neutral-950">Cody</Text>
-          <Text className="text-base leading-6 text-neutral-600">
+          <Text className="text-foreground text-4xl font-semibold">Cody</Text>
+          <Text className="text-muted-foreground text-base leading-6">
             Your saved authenticator accounts.
           </Text>
         </View>
@@ -29,24 +29,24 @@ export default function Index() {
         ) : error != null ? (
           <StateText value="Could not load saved accounts." />
         ) : accounts.length === 0 ? (
-          <View className="rounded-lg border border-dashed border-neutral-300 px-5 py-8">
-            <Text className="text-center text-lg font-semibold text-neutral-950">
+          <View className="border-border rounded-lg border border-dashed px-5 py-8">
+            <Text className="text-foreground text-center text-lg font-semibold">
               No accounts yet
             </Text>
-            <Text className="mt-2 text-center text-base leading-6 text-neutral-600">
+            <Text className="text-muted-foreground mt-2 text-center text-base leading-6">
               Scan a TOTP QR code to add your first account.
             </Text>
           </View>
         ) : (
           accounts.map(account => (
             <View
-              className="rounded-lg border border-neutral-200 px-4 py-4"
+              className="border-border rounded-lg border px-4 py-4"
               key={account.id}
             >
-              <Text className="text-lg font-semibold text-neutral-950">
+              <Text className="text-foreground text-lg font-semibold">
                 {account.issuer || 'Unknown issuer'}
               </Text>
-              <Text className="mt-1 text-base text-neutral-600">
+              <Text className="text-muted-foreground mt-1 text-base">
                 {account.label}
               </Text>
             </View>
@@ -63,8 +63,8 @@ interface StateTextProps {
 
 function StateText({ value }: StateTextProps) {
   return (
-    <View className="rounded-lg border border-neutral-200 px-5 py-6">
-      <Text className="text-center text-base font-semibold text-neutral-700">
+    <View className="border-border rounded-lg border px-5 py-6">
+      <Text className="text-muted-foreground text-center text-base font-semibold">
         {value}
       </Text>
     </View>

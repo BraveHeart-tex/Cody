@@ -10,6 +10,7 @@ import {
   getScannerDraft
 } from '@/features/totp/model/scanner-drafts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
+import { cn } from '@/lib/utils/cn';
 
 export default function AccountConfirmScreen() {
   const { draftId } = useLocalSearchParams<{ draftId?: string }>();
@@ -57,12 +58,12 @@ export default function AccountConfirmScreen() {
 
   if (draft == null) {
     return (
-      <View className="flex-1 items-center justify-center gap-5 bg-white px-8">
+      <View className="bg-background flex-1 items-center justify-center gap-5 px-8">
         <View className="gap-2">
-          <Text className="text-center text-2xl font-semibold text-neutral-950">
+          <Text className="text-foreground text-center text-2xl font-semibold">
             QR code draft expired
           </Text>
-          <Text className="text-center text-base leading-6 text-neutral-600">
+          <Text className="text-muted-foreground text-center text-base leading-6">
             Scan the QR code again to review the account details.
           </Text>
         </View>
@@ -79,17 +80,17 @@ export default function AccountConfirmScreen() {
   const isSaveDisabled = isLoading || isSaving || isDuplicate;
 
   return (
-    <View className="flex-1 gap-8 bg-white px-6 py-16">
+    <View className="bg-background flex-1 gap-8 px-6 py-16">
       <View className="gap-2">
-        <Text className="text-3xl font-semibold text-neutral-950">
+        <Text className="text-foreground text-3xl font-semibold">
           Review account
         </Text>
-        <Text className="text-base leading-6 text-neutral-600">
+        <Text className="text-muted-foreground text-base leading-6">
           Confirm the scanned details before saving this account.
         </Text>
       </View>
 
-      <View className="gap-4 rounded-lg border border-neutral-200 p-4">
+      <View className="border-border gap-4 rounded-lg border p-4">
         <DetailRow label="Issuer" value={draft.issuer || 'Not provided'} />
         <DetailRow label="Label" value={draft.label} />
         <DetailRow label="Type" value={draft.type.toUpperCase()} />
@@ -125,8 +126,8 @@ interface DetailRowProps {
 function DetailRow({ label, value }: DetailRowProps) {
   return (
     <View className="gap-1">
-      <Text className="text-sm font-medium text-neutral-500">{label}</Text>
-      <Text className="text-lg font-semibold text-neutral-950">{value}</Text>
+      <Text className="text-muted-foreground text-sm font-medium">{label}</Text>
+      <Text className="text-foreground text-lg font-semibold">{value}</Text>
     </View>
   );
 }
@@ -137,7 +138,7 @@ interface StatusMessageProps {
 
 function StatusMessage({ value }: StatusMessageProps) {
   return (
-    <Text className="rounded-lg bg-red-50 px-4 py-3 text-center text-base font-semibold text-red-700">
+    <Text className="bg-destructive text-destructive-foreground rounded-lg px-4 py-3 text-center text-base font-semibold">
       {value}
     </Text>
   );
@@ -157,15 +158,21 @@ function PrimaryButton({
   return (
     <Pressable
       accessibilityRole="button"
-      className={
-        disabled
-          ? 'items-center rounded-lg bg-neutral-300 px-5 py-3'
-          : 'items-center rounded-lg bg-orange-500 px-5 py-3'
-      }
+      className={cn(
+        'items-center rounded-lg px-5 py-3',
+        disabled ? 'bg-muted' : 'bg-primary'
+      )}
       disabled={disabled}
       onPress={onPress}
     >
-      <Text className="text-base font-semibold text-white">{label}</Text>
+      <Text
+        className={cn(
+          'text-base font-semibold',
+          disabled ? 'text-muted-foreground' : 'text-primary-foreground'
+        )}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -174,10 +181,10 @@ function SecondaryButton({ label, onPress }: PrimaryButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
-      className="items-center rounded-lg border border-neutral-300 px-5 py-3"
+      className="border-border items-center rounded-lg border px-5 py-3"
       onPress={onPress}
     >
-      <Text className="text-base font-semibold text-neutral-950">{label}</Text>
+      <Text className="text-foreground text-base font-semibold">{label}</Text>
     </Pressable>
   );
 }

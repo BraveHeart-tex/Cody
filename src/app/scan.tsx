@@ -103,7 +103,7 @@ export default function ScanScreen() {
   }
 
   return (
-    <View className="flex-1 bg-black">
+    <View className="bg-background flex-1">
       {isFocused ? (
         <CameraView
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -115,24 +115,24 @@ export default function ScanScreen() {
           style={styles.camera}
         />
       ) : null}
-      <View className="absolute inset-x-0 bottom-0 gap-4 bg-black/70 px-6 pt-6 pb-12">
-        <Text className="text-center text-lg font-semibold text-white">
+      <View className="bg-background/70 absolute inset-x-0 bottom-0 gap-4 px-6 pt-6 pb-12">
+        <Text className="text-foreground text-center text-lg font-semibold">
           Scan authenticator QR code
         </Text>
-        <Text className="text-center text-sm leading-5 text-white/80">
+        <Text className="text-muted-foreground text-center text-sm leading-5">
           Position the TOTP QR code inside the camera view.
         </Text>
         {error != null ? (
-          <View className="gap-3 rounded-lg bg-white px-4 py-4">
-            <Text className="text-center text-base font-semibold text-red-700">
+          <View className="bg-card gap-3 rounded-lg px-4 py-4">
+            <Text className="text-destructive text-center text-base font-semibold">
               {error}
             </Text>
             <PrimaryButton label="Scan Again" onPress={handleRetryScan} />
           </View>
         ) : null}
         {cameraError != null ? (
-          <View className="rounded-lg bg-white px-4 py-4">
-            <Text className="text-center text-base font-semibold text-red-700">
+          <View className="bg-card rounded-lg px-4 py-4">
+            <Text className="text-destructive text-center text-base font-semibold">
               {cameraError}
             </Text>
           </View>
@@ -150,12 +150,12 @@ interface CenteredStateProps {
 
 function CenteredState({ action, description, title }: CenteredStateProps) {
   return (
-    <View className="flex-1 items-center justify-center gap-5 bg-white px-8">
+    <View className="bg-background flex-1 items-center justify-center gap-5 px-8">
       <View className="gap-2">
-        <Text className="text-center text-2xl font-semibold text-neutral-950">
+        <Text className="text-foreground text-center text-2xl font-semibold">
           {title}
         </Text>
-        <Text className="text-center text-base leading-6 text-neutral-600">
+        <Text className="text-muted-foreground text-center text-base leading-6">
           {description}
         </Text>
       </View>
@@ -173,10 +173,12 @@ function PrimaryButton({ label, onPress }: PrimaryButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
-      className="items-center rounded-lg bg-orange-500 px-5 py-3"
+      className="bg-primary items-center rounded-lg px-5 py-3"
       onPress={onPress}
     >
-      <Text className="text-base font-semibold text-white">{label}</Text>
+      <Text className="text-primary-foreground text-base font-semibold">
+        {label}
+      </Text>
     </Pressable>
   );
 }
