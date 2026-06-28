@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
+import { useTotpCountdown } from '@/features/totp/hooks/use-totp-countdown';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { generateTotpCode } from '@/features/totp/model/totp-code';
 
@@ -23,7 +24,6 @@ const CODE_PLACEHOLDER = '------';
 export default function AccountDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { accounts, error, isLoading } = useAccounts();
-  const timestamp = useTimestamp();
   const account = useMemo(
     () => accounts.find(currentAccount => currentAccount.id === id),
     [accounts, id]
@@ -70,45 +70,27 @@ export default function AccountDetailScreen() {
           title="Account not found"
         />
       ) : (
-        <AccountDetails account={account} timestamp={timestamp} />
+        <AccountDetails account={account} />
       )}
     </ScrollView>
   );
 }
 
-function useTimestamp(): number {
-  // TODO: FE-221 Replace this local ticker with the shared TOTP countdown hook.
-  const [timestamp, setTimestamp] = useState(() => Date.now());
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setTimestamp(Date.now());
-    }, 1000);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, []);
-
-  return timestamp;
-}
-
 interface AccountDetailsProps {
   account: OtpAccount;
-  timestamp: number;
 }
 
-function AccountDetails({ account, timestamp }: AccountDetailsProps) {
+function AccountDetails({ account }: AccountDetailsProps) {
   const period = account.period ?? DEFAULT_PERIOD;
+  const countdown = useTotpCountdown(period);
   const code =
     generateTotpCode({
       secret: account.secret,
       algorithm: account.algorithm,
       period,
       digits: account.digits,
-      timestamp
+      timestamp: countdown.periodStartedAt
     }) || CODE_PLACEHOLDER;
-  const secondsRemaining = getSecondsRemaining(timestamp, period);
 
   return (
     <Card className="rounded-lg py-0">
@@ -135,7 +117,7 @@ function AccountDetails({ account, timestamp }: AccountDetailsProps) {
           {/* TODO: FE-222 Swap this numeric placeholder for the animated countdown ring. */}
           <View className="border-border h-14 w-14 items-center justify-center rounded-full border">
             <Text className="text-muted-foreground text-base font-semibold">
-              {secondsRemaining}
+              {countdown.remainingSeconds}
             </Text>
           </View>
         </View>
@@ -210,10 +192,4 @@ function StateCard({ description, title }: StateCardProps) {
       </CardDescription>
     </Card>
   );
-}
-
-function getSecondsRemaining(timestamp: number, period: 30 | 60): number {
-  const elapsedSeconds = Math.floor(timestamp / 1000) % period;
-
-  return period - elapsedSeconds;
 }

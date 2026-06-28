@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback } from 'react';
 import {
   FlatList,
   Pressable,
@@ -18,6 +18,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
+import {
+  useTotpCountdown,
+  type TotpCountdownState
+} from '@/features/totp/hooks/use-totp-countdown';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { generateTotpCode } from '@/features/totp/model/totp-code';
 
@@ -29,7 +33,8 @@ const LOADING_ROW_COUNT = 4;
 
 export default function Index() {
   const { accounts, error, isLoading } = useAccounts();
-  const timestamp = useTimestamp();
+  const thirtySecondCountdown = useTotpCountdown(30);
+  const sixtySecondCountdown = useTotpCountdown(60);
 
   const handleAddPress = useCallback(() => {
     router.push('/scan');
@@ -37,9 +42,14 @@ export default function Index() {
 
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<OtpAccount>) => (
-      <AccountCard account={item} timestamp={timestamp} />
+      <AccountCard
+        account={item}
+        countdown={
+          item.period === 60 ? sixtySecondCountdown : thirtySecondCountdown
+        }
+      />
     ),
-    [timestamp]
+    [sixtySecondCountdown, thirtySecondCountdown]
   );
 
   return (
@@ -85,35 +95,18 @@ export default function Index() {
   );
 }
 
-function useTimestamp(): number {
-  // TODO: FE-221 Replace this local ticker with the shared TOTP countdown hook.
-  const [timestamp, setTimestamp] = useState(() => Date.now());
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setTimestamp(Date.now());
-    }, 1000);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, []);
-
-  return timestamp;
-}
-
 function keyExtractor(account: OtpAccount): string {
   return account.id;
 }
 
 interface AccountCardProps {
   account: OtpAccount;
-  timestamp: number;
+  countdown: TotpCountdownState;
 }
 
 const AccountCard = memo(function AccountCard({
   account,
-  timestamp
+  countdown
 }: AccountCardProps) {
   const period = account.period ?? DEFAULT_PERIOD;
   const code =
@@ -122,9 +115,8 @@ const AccountCard = memo(function AccountCard({
       algorithm: account.algorithm,
       period,
       digits: account.digits,
-      timestamp
+      timestamp: countdown.periodStartedAt
     }) || CODE_PLACEHOLDER;
-  const secondsRemaining = getSecondsRemaining(timestamp, period);
 
   const handlePress = useCallback(() => {
     router.push({
@@ -149,7 +141,7 @@ const AccountCard = memo(function AccountCard({
               {account.label}
             </CardDescription>
           </View>
-          <CountdownBadge seconds={secondsRemaining} />
+          <CountdownBadge seconds={countdown.remainingSeconds} />
         </CardHeader>
 
         <CardContent className="px-4">
@@ -228,10 +220,4 @@ function StateCard({ description, title }: StateCardProps) {
       </CardDescription>
     </Card>
   );
-}
-
-function getSecondsRemaining(timestamp: number, period: 30 | 60): number {
-  const elapsedSeconds = Math.floor(timestamp / 1000) % period;
-
-  return period - elapsedSeconds;
 }
