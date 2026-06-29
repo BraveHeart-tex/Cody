@@ -22,6 +22,7 @@ import {
 import { getAccountColor } from '@/features/totp/model/account-colors';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { generateTotpCode } from '@/features/totp/model/totp-code';
+import * as Haptics from 'expo-haptics';
 import { CheckIcon, CopyIcon, EllipsisIcon } from 'lucide-react-native';
 import {
   memo,
@@ -200,6 +201,7 @@ function AccountCardDetails({
       event.stopPropagation();
       await copyPasscode(code);
       setIsCopied(true);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     },
     [code]
   );

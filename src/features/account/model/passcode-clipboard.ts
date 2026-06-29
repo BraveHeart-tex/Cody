@@ -1,5 +1,5 @@
-import { setStringAsync } from 'expo-clipboard';
+import * as Clipboard from 'expo-clipboard';
 
 export async function copyPasscode(passcode: string): Promise<void> {
-  await setStringAsync(passcode);
+  await Clipboard.setStringAsync(passcode);
 }
