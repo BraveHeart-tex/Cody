@@ -9,8 +9,8 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
-import { createAccountId } from '@/features/totp/model/account-id';
 import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
+import { createAccountId } from '@/features/totp/model/account-id';
 import {
   validateManualAccount,
   type ManualTotpDigits,
@@ -133,22 +133,26 @@ export default function ManualAddAccountScreen() {
 
         <Field label="Secret key" required>
           <View className="gap-2">
-            <View className="flex-row gap-2">
+            <View className="flex-row items-center gap-2">
               <Input
                 accessibilityLabel="Secret key"
-                autoCapitalize="characters"
+                autoCapitalize="none"
+                autoComplete="off"
                 autoCorrect={false}
-                className="flex-1"
-                onChangeText={setSecret}
+                importantForAutofill="no"
+                keyboardType="default"
+                onChangeText={value => setSecret(value.toUpperCase())}
                 placeholder="JBSW Y3DP EHPK 3PXP"
                 secureTextEntry={!isSecretVisible}
+                textContentType="none"
                 value={secret}
+                className="flex-1"
               />
               <Button
                 accessibilityLabel={
                   isSecretVisible ? 'Hide secret key' : 'Reveal secret key'
                 }
-                className="min-w-20"
+                className="h-10 min-w-20"
                 size="sm"
                 variant="outline"
                 onPress={() => setIsSecretVisible(current => !current)}
