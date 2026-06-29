@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 import { StateCard } from '@/components/ui/state-card';
 import { Text } from '@/components/ui/text';
 import { AccountCard } from '@/features/account/components/account-card';
@@ -7,6 +8,7 @@ import { AccountSearchInput } from '@/features/account/components/account-search
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { router } from 'expo-router';
+import { PlusIcon } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { FlatList, type ListRenderItemInfo, View } from 'react-native';
 
@@ -109,13 +111,9 @@ function AccountListHeader({
         onPress={onAddPress}
         size="sm"
         variant="ghost"
+        className="text-base"
       >
-        <Text
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          ➕
-        </Text>
+        <Icon as={PlusIcon} />
         <Text>Add</Text>
       </Button>
     </View>

@@ -1,5 +1,6 @@
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { Text } from '@/components/ui/text';
+import { SearchIcon } from 'lucide-react-native';
 import { View } from 'react-native';
 
 export function AccountSearchInput() {
@@ -7,10 +8,10 @@ export function AccountSearchInput() {
     <View className="relative w-full">
       <View
         accessibilityElementsHidden
-        className="absolute top-0 left-3 z-10 h-10 justify-center sm:h-9"
+        className="absolute top-0 left-4 z-10 h-10 justify-center sm:h-9"
         importantForAccessibility="no-hide-descendants"
       >
-        <Text className="text-muted-foreground text-base">🔍</Text>
+        <Icon as={SearchIcon} className="text-muted-foreground text-base" />
       </View>
       <Input
         accessibilityLabel="Search accounts"
