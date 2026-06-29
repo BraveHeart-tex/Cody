@@ -42,6 +42,26 @@ jest.mock('@/components/ui/button', () => {
   };
 });
 
+jest.mock('@/components/ui/icon', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+
+  return {
+    Icon: (props: React.ComponentProps<typeof View>) =>
+      React.createElement(View, props)
+  };
+});
+
+jest.mock('@/components/ui/input', () => {
+  const React = require('react');
+  const { TextInput } = require('react-native');
+
+  return {
+    Input: (props: React.ComponentProps<typeof TextInput>) =>
+      React.createElement(TextInput, props)
+  };
+});
+
 jest.mock('@/components/ui/state-card', () => {
   const React = require('react');
   const { Text } = require('react-native');
@@ -64,10 +84,6 @@ jest.mock('@/components/ui/text', () => {
 
 jest.mock('@/features/account/components/account-list-skeleton', () => ({
   AccountListSkeleton: () => null
-}));
-
-jest.mock('@/features/account/components/account-search-input', () => ({
-  AccountSearchInput: () => null
 }));
 
 jest.mock('@/features/account/components/account-card', () => {
@@ -140,6 +156,14 @@ const account: OtpAccount = {
   createdAt: 123
 };
 
+const secondAccount: OtpAccount = {
+  ...account,
+  id: 'second-account-id',
+  issuer: 'Dropbox',
+  label: 'work@example.com',
+  sortOrder: 1
+};
+
 describe('AccountList', () => {
   beforeEach(() => {
     mockAccounts = [account];
@@ -173,5 +197,52 @@ describe('AccountList', () => {
     await waitFor(() => {
       expect(queryByText('GitHub')).toBeNull();
     });
+  });
+
+  it('filters accounts by issuer', async () => {
+    mockAccounts = [account, secondAccount];
+    const { getByLabelText, queryByText } = await render(<AccountList />);
+
+    await fireEvent.changeText(getByLabelText('Search accounts'), 'git');
+
+    expect(queryByText('GitHub')).toBeTruthy();
+    expect(queryByText('Dropbox')).toBeNull();
+  });
+
+  it('filters accounts by label case-insensitively', async () => {
+    mockAccounts = [account, secondAccount];
+    const { getByLabelText, queryByText } = await render(<AccountList />);
+
+    await fireEvent.changeText(
+      getByLabelText('Search accounts'),
+      'WORK@EXAMPLE.COM'
+    );
+
+    expect(queryByText('Dropbox')).toBeTruthy();
+    expect(queryByText('GitHub')).toBeNull();
+  });
+
+  it('shows a search-specific empty state when no accounts match', async () => {
+    mockAccounts = [account];
+    const { getByLabelText, queryByText } = await render(<AccountList />);
+
+    await fireEvent.changeText(getByLabelText('Search accounts'), 'dropbox');
+
+    expect(queryByText('No matching accounts')).toBeTruthy();
+    expect(queryByText('No accounts yet')).toBeNull();
+  });
+
+  it('collapses the active account when the search query changes', async () => {
+    const { getByLabelText, getByTestId, queryByTestId } = await render(
+      <AccountList />
+    );
+
+    await fireEvent.press(getByTestId('account-card-account-id'));
+
+    expect(queryByTestId('account-delete-account-id')).toBeTruthy();
+
+    await fireEvent.changeText(getByLabelText('Search accounts'), 'git');
+
+    expect(queryByTestId('account-delete-account-id')).toBeNull();
   });
 });

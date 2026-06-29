@@ -9,7 +9,7 @@ import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { router } from 'expo-router';
 import { PlusIcon } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, type ListRenderItemInfo, View } from 'react-native';
 
 const ACCOUNT_LIST_BATCH_SIZE = 12;
@@ -18,9 +18,19 @@ const ACCOUNT_LIST_WINDOW_SIZE = 7;
 export function AccountList() {
   const { accounts, deleteAccount, error, isLoading } = useAccounts();
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredAccounts = useMemo(
+    () => filterAccounts(accounts, searchQuery),
+    [accounts, searchQuery]
+  );
 
   const handleAddPress = useCallback(() => {
     router.push('/add-account');
+  }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    setActiveAccountId(null);
   }, []);
 
   const handleAccountPress = useCallback((accountId: string) => {
@@ -67,19 +77,27 @@ export function AccountList() {
     <FlatList
       className="flex-1"
       contentContainerClassName={
-        accounts.length === 0 ? 'flex-grow gap-3 pb-safe' : 'gap-3 pb-safe'
+        filteredAccounts.length === 0
+          ? 'flex-grow gap-3 pb-safe'
+          : 'gap-3 pb-safe'
       }
-      data={accounts}
+      data={filteredAccounts}
       initialNumToRender={ACCOUNT_LIST_BATCH_SIZE}
       keyExtractor={keyExtractor}
-      ListFooterComponent={accounts.length > 0 ? ListFooterSpacer : null}
+      ListFooterComponent={
+        filteredAccounts.length > 0 ? ListFooterSpacer : null
+      }
       ListHeaderComponent={
         <AccountListHeaderSection
           accountCount={accounts.length}
+          onSearchChange={handleSearchChange}
           onAddPress={handleAddPress}
+          searchQuery={searchQuery}
         />
       }
-      ListEmptyComponent={AccountListEmpty}
+      ListEmptyComponent={
+        accounts.length === 0 ? AccountListEmpty : AccountListNoSearchResults
+      }
       maxToRenderPerBatch={ACCOUNT_LIST_BATCH_SIZE}
       renderItem={renderItem}
       showsVerticalScrollIndicator={false}
@@ -92,9 +110,29 @@ function keyExtractor(account: OtpAccount): string {
   return account.id;
 }
 
+function filterAccounts(accounts: OtpAccount[], searchQuery: string) {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  if (normalizedQuery.length === 0) {
+    return accounts;
+  }
+
+  return accounts.filter(account => {
+    const issuer = account.issuer.toLowerCase();
+    const label = account.label.toLowerCase();
+
+    return issuer.includes(normalizedQuery) || label.includes(normalizedQuery);
+  });
+}
+
 interface AccountListHeaderProps {
   accountCount: number;
   onAddPress: () => void;
+}
+
+interface AccountListHeaderSectionProps extends AccountListHeaderProps {
+  onSearchChange: (value: string) => void;
+  searchQuery: string;
 }
 
 function AccountListHeader({
@@ -120,11 +158,17 @@ function AccountListHeader({
   );
 }
 
-function AccountListHeaderSection(props: AccountListHeaderProps) {
+function AccountListHeaderSection(props: AccountListHeaderSectionProps) {
   return (
     <View className="gap-5">
-      <AccountSearchInput />
-      <AccountListHeader {...props} />
+      <AccountSearchInput
+        onChangeText={props.onSearchChange}
+        value={props.searchQuery}
+      />
+      <AccountListHeader
+        accountCount={props.accountCount}
+        onAddPress={props.onAddPress}
+      />
     </View>
   );
 }
@@ -140,6 +184,17 @@ function AccountListEmpty() {
       <StateCard
         description="Scan a QR code or enter a setup key to add your first account."
         title="No accounts yet"
+      />
+    </View>
+  );
+}
+
+function AccountListNoSearchResults() {
+  return (
+    <View className="flex-1 justify-start">
+      <StateCard
+        description="Try a different issuer or account label."
+        title="No matching accounts"
       />
     </View>
   );

@@ -3,7 +3,15 @@ import { Input } from '@/components/ui/input';
 import { SearchIcon } from 'lucide-react-native';
 import { View } from 'react-native';
 
-export function AccountSearchInput() {
+interface AccountSearchInputProps {
+  onChangeText: (value: string) => void;
+  value: string;
+}
+
+export function AccountSearchInput({
+  onChangeText,
+  value
+}: AccountSearchInputProps) {
   return (
     <View className="relative w-full">
       <View
@@ -16,7 +24,9 @@ export function AccountSearchInput() {
       <Input
         accessibilityLabel="Search accounts"
         className="pl-10"
+        onChangeText={onChangeText}
         placeholder="Search"
+        value={value}
       />
     </View>
   );
