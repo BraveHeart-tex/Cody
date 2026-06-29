@@ -6,32 +6,30 @@
 @theme {
   --font-sans: HankenGrotesk_400Regular;
   --font-mono: JetBrainsMono_600SemiBold;
-
-  --color-background: hsl(240 20% 98%);
-  --color-foreground: hsl(240 12% 8%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(240 12% 8%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(240 12% 8%);
-  --color-primary: hsl(239 88% 64%);
+  --color-background: hsl(35 20% 97%);
+  --color-foreground: hsl(240 14% 9%);
+  --color-card: hsl(30 25% 99%);
+  --color-card-foreground: hsl(240 14% 9%);
+  --color-popover: hsl(30 25% 99%);
+  --color-popover-foreground: hsl(240 14% 9%);
+  --color-primary: hsl(258 76% 59%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(240 10% 94%);
-  --color-secondary-foreground: hsl(240 9% 16%);
-  --color-muted: hsl(240 10% 94%);
-  --color-muted-foreground: hsl(240 7% 43%);
-  --color-accent: hsl(239 90% 96%);
-  --color-accent-foreground: hsl(239 74% 42%);
+  --color-secondary: hsl(35 15% 91%);
+  --color-secondary-foreground: hsl(35 8% 18%);
+  --color-muted: hsl(35 15% 91%);
+  --color-muted-foreground: hsl(35 6% 44%);
+  --color-accent: hsl(258 90% 95%);
+  --color-accent-foreground: hsl(258 70% 38%);
   --color-destructive: hsl(3 78% 57%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-border: hsl(240 9% 88%);
-  --color-input: hsl(240 9% 88%);
-  --color-ring: hsl(239 88% 64%);
-  --color-chart-1: hsl(239 88% 64%);
-  --color-chart-2: hsl(190 74% 42%);
-  --color-chart-3: hsl(156 62% 38%);
-  --color-chart-4: hsl(35 82% 58%);
-  --color-chart-5: hsl(347 74% 59%);
-
+  --color-border: hsl(35 12% 83%);
+  --color-input: hsl(35 12% 83%);
+  --color-ring: hsl(258 76% 59%);
+  --color-chart-1: hsl(258 76% 59%);
+  --color-chart-2: hsl(199 72% 45%);
+  --color-chart-3: hsl(159 58% 40%);
+  --color-chart-4: hsl(38 85% 56%);
+  --color-chart-5: hsl(340 72% 58%);
   --radius: 0.75rem;
 
   /* Hairline border — replaces hairlineWidth() from nativewind/theme.
@@ -42,31 +40,30 @@ Available as border-hairline. */
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: hsl(240 5% 8%);
-    --color-foreground: hsl(300 4% 89%);
-    --color-card: hsl(240 4% 13%);
-    --color-card-foreground: hsl(300 4% 89%);
-    --color-popover: hsl(240 4% 13%);
-    --color-popover-foreground: hsl(300 4% 89%);
-    --color-primary: hsl(239 100% 88%);
-    --color-primary-foreground: hsl(245 100% 33%);
-    --color-secondary: hsl(240 2% 29%);
-    --color-secondary-foreground: hsl(300 2% 88%);
-    --color-muted: hsl(240 3% 18%);
-    --color-muted-foreground: hsl(247 17% 81%);
-    --color-accent: hsl(239 100% 75%);
-    --color-accent-foreground: hsl(245 100% 30%);
+    --color-background: hsl(240 8% 7%);
+    --color-foreground: hsl(35 8% 84%);
+    --color-card: hsl(248 6% 12%);
+    --color-card-foreground: hsl(35 8% 84%);
+    --color-popover: hsl(248 6% 12%);
+    --color-popover-foreground: hsl(35 8% 84%);
+    --color-primary: hsl(258 100% 86%);
+    --color-primary-foreground: hsl(258 100% 20%);
+    --color-secondary: hsl(245 4% 26%);
+    --color-secondary-foreground: hsl(35 6% 82%);
+    --color-muted: hsl(248 5% 16%);
+    --color-muted-foreground: hsl(35 5% 58%);
+    --color-accent: hsl(258 80% 22%);
+    --color-accent-foreground: hsl(258 100% 82%);
     --color-destructive: hsl(6 100% 84%);
     --color-destructive-foreground: hsl(357 100% 22%);
-    --color-border: hsl(246 10% 30%);
-    --color-input: hsl(240 3% 21%);
-    --color-ring: hsl(239 100% 88%);
-
-    --color-chart-1: hsl(239 100% 82%);
-    --color-chart-2: hsl(190 78% 62%);
-    --color-chart-3: hsl(156 58% 56%);
-    --color-chart-4: hsl(35 88% 68%);
-    --color-chart-5: hsl(347 88% 72%);
+    --color-border: hsl(248 8% 28%);
+    --color-input: hsl(248 5% 18%);
+    --color-ring: hsl(258 100% 86%);
+    --color-chart-1: hsl(258 100% 83%);
+    --color-chart-2: hsl(199 76% 63%);
+    --color-chart-3: hsl(159 54% 56%);
+    --color-chart-4: hsl(38 88% 66%);
+    --color-chart-5: hsl(340 80% 71%);
   }
 }
 
