@@ -1,3 +1,4 @@
+import { MoveAccountsDoneButton } from '@/features/account/components/move-accounts-done-button';
 import '@/global.css';
 import { NAV_THEME } from '@/theme';
 import { HankenGrotesk_400Regular } from '@expo-google-fonts/hanken-grotesk/400Regular';
@@ -13,6 +14,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { ThemeProvider } from 'expo-router/react-navigation';
 import { useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -34,39 +36,48 @@ export default function RootLayout() {
   const theme = NAV_THEME[scheme];
 
   return (
-    <ThemeProvider value={theme}>
-      <Stack
-        screenOptions={{
-          headerShadowVisible: false,
-          headerStyle: {
-            backgroundColor: theme.colors.background
-          },
-          headerTitleStyle: {
-            fontFamily: 'HankenGrotesk_600SemiBold',
-            fontSize: 17
-          },
-          headerTintColor: theme.colors.text,
-          contentStyle: {
-            backgroundColor: theme.colors.background
-          }
-        }}
-      >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="add-account/index"
-          options={{ title: 'Add account' }}
-        />
-        <Stack.Screen
-          name="add-account/manual"
-          options={{ title: 'Enter setup key' }}
-        />
-        <Stack.Screen name="scan" options={{ title: 'Scan QR code' }} />
-        <Stack.Screen
-          name="account-confirm"
-          options={{ title: 'Review account' }}
-        />
-      </Stack>
-      <PortalHost />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={theme}>
+        <Stack
+          screenOptions={{
+            headerShadowVisible: false,
+            headerStyle: {
+              backgroundColor: theme.colors.background
+            },
+            headerTitleStyle: {
+              fontFamily: 'HankenGrotesk_600SemiBold',
+              fontSize: 17
+            },
+            headerTintColor: theme.colors.text,
+            contentStyle: {
+              backgroundColor: theme.colors.background
+            }
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="add-account/index"
+            options={{ title: 'Add account' }}
+          />
+          <Stack.Screen
+            name="add-account/manual"
+            options={{ title: 'Enter setup key' }}
+          />
+          <Stack.Screen name="scan" options={{ title: 'Scan QR code' }} />
+          <Stack.Screen
+            name="move-accounts"
+            options={{
+              headerRight: MoveAccountsDoneButton,
+              title: 'Move accounts'
+            }}
+          />
+          <Stack.Screen
+            name="account-confirm"
+            options={{ title: 'Review account' }}
+          />
+        </Stack>
+        <PortalHost />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

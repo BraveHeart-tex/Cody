@@ -28,6 +28,10 @@ export function AccountList() {
     router.push('/add-account');
   }, []);
 
+  const handleMovePress = useCallback(() => {
+    router.push('/move-accounts');
+  }, []);
+
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
     setActiveAccountId(null);
@@ -54,10 +58,11 @@ export function AccountList() {
         account={item}
         isActive={item.id === activeAccountId}
         onDelete={handleAccountDelete}
+        onMove={handleMovePress}
         onPress={handleAccountPress}
       />
     ),
-    [activeAccountId, handleAccountDelete, handleAccountPress]
+    [activeAccountId, handleAccountDelete, handleAccountPress, handleMovePress]
   );
 
   if (isLoading) {

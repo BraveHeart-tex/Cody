@@ -192,6 +192,23 @@ describe('AccountCard', () => {
     expect(getByTestId('account-card-progress')).toBeTruthy();
   });
 
+  it('calls onMove from the active account actions', async () => {
+    const onMove = jest.fn();
+    const { getByText } = await render(
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={jest.fn()}
+        onMove={onMove}
+        onPress={jest.fn()}
+      />
+    );
+
+    await fireEvent.press(getByText('Move'));
+
+    expect(onMove).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the account label initial first', async () => {
     const { getByText } = await render(
       <AccountCard

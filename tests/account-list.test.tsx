@@ -19,6 +19,7 @@ import type { UseAccountsResult } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 const mockDeleteAccount = jest.fn<UseAccountsResult['deleteAccount']>();
+const mockReorderAccounts = jest.fn<UseAccountsResult['reorderAccounts']>();
 let mockAccounts: OtpAccount[] = [];
 
 (
@@ -95,11 +96,13 @@ jest.mock('@/features/account/components/account-card', () => {
       account,
       isActive,
       onDelete,
+      onMove,
       onPress
     }: {
       account: OtpAccount;
       isActive: boolean;
       onDelete: (accountId: string) => void;
+      onMove?: () => void;
       onPress: (accountId: string) => void;
     }) =>
       React.createElement(
@@ -116,12 +119,24 @@ jest.mock('@/features/account/components/account-card', () => {
         ),
         isActive
           ? React.createElement(
-              Pressable,
-              {
-                onPress: () => onDelete(account.id),
-                testID: `account-delete-${account.id}`
-              },
-              React.createElement(Text, null, 'Delete')
+              View,
+              null,
+              React.createElement(
+                Pressable,
+                {
+                  onPress: () => onDelete(account.id),
+                  testID: `account-delete-${account.id}`
+                },
+                React.createElement(Text, null, 'Delete')
+              ),
+              React.createElement(
+                Pressable,
+                {
+                  onPress: onMove,
+                  testID: `account-move-${account.id}`
+                },
+                React.createElement(Text, null, 'Move')
+              )
             )
           : null
       )
@@ -135,7 +150,7 @@ jest.mock('@/features/totp/hooks/use-accounts', () => ({
     deleteAccount: mockDeleteAccount,
     error: null,
     isLoading: false,
-    reorderAccounts: jest.fn<UseAccountsResult['reorderAccounts']>(),
+    reorderAccounts: mockReorderAccounts,
     updateAccount: jest.fn<UseAccountsResult['updateAccount']>()
   })
 }));
@@ -175,6 +190,7 @@ describe('AccountList', () => {
   afterEach(async () => {
     await cleanup();
     mockDeleteAccount.mockReset();
+    mockReorderAccounts.mockReset();
     jest.mocked(router.push).mockReset();
     jest.mocked(router.replace).mockReset();
   });
@@ -244,5 +260,14 @@ describe('AccountList', () => {
     await fireEvent.changeText(getByLabelText('Search accounts'), 'git');
 
     expect(queryByTestId('account-delete-account-id')).toBeNull();
+  });
+
+  it('opens the move accounts screen from an active account', async () => {
+    const { getByTestId } = await render(<AccountList />);
+
+    await fireEvent.press(getByTestId('account-card-account-id'));
+    await fireEvent.press(getByTestId('account-move-account-id'));
+
+    expect(router.push).toHaveBeenCalledWith('/move-accounts');
   });
 });

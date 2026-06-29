@@ -53,6 +53,7 @@ interface AccountCardProps {
   account: OtpAccount;
   isActive: boolean;
   onDelete: (accountId: string) => void;
+  onMove?: () => void;
   onPress: (accountId: string) => void;
 }
 
@@ -69,6 +70,7 @@ export const AccountCard = memo(function AccountCard({
   account,
   isActive,
   onDelete,
+  onMove,
   onPress
 }: AccountCardProps) {
   const period = account.period ?? DEFAULT_PERIOD;
@@ -128,6 +130,7 @@ export const AccountCard = memo(function AccountCard({
                   account={account}
                   issuer={issuer}
                   onDelete={onDelete}
+                  onMove={onMove}
                 />
               ) : null}
             </View>
@@ -325,11 +328,13 @@ function AccountInitial({
 function AccountActions({
   account,
   issuer,
-  onDelete
+  onDelete,
+  onMove
 }: {
   account: OtpAccount;
   issuer: string;
   onDelete: (accountId: string) => void;
+  onMove?: () => void;
 }) {
   const handleDeletePress = useCallback(() => {
     Alert.alert(
@@ -361,7 +366,7 @@ function AccountActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-44 p-1.5">
-        <DropdownMenuItem className="min-h-12 px-3">
+        <DropdownMenuItem className="min-h-12 px-3" onPress={onMove}>
           <Text className="text-base">Move</Text>
         </DropdownMenuItem>
         <DropdownMenuItem className="min-h-12 px-3">
@@ -422,6 +427,10 @@ function areAccountCardPropsEqual(
   }
 
   if (previous.onDelete !== next.onDelete) {
+    return false;
+  }
+
+  if (previous.onMove !== next.onMove) {
     return false;
   }
 

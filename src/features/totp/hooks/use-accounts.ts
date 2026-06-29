@@ -167,7 +167,10 @@ export function useAccounts(): UseAccountsResult {
   const reorderAccounts = useCallback(
     async (ids: string[]) => {
       await runMutation(async () => {
-        await persistMutation(currentAccounts => {
+        try {
+          await loadPromiseRef.current;
+
+          const currentAccounts = accountsRef.current;
           const accountById = new Map(
             currentAccounts.map(account => [account.id, account])
           );
@@ -179,16 +182,26 @@ export function useAccounts(): UseAccountsResult {
             ({ id }) => !reorderedIds.has(id)
           );
 
-          return [...reorderedAccounts, ...remainingAccounts].map(
+          const nextAccounts = [...reorderedAccounts, ...remainingAccounts].map(
             (account, index) => ({
               ...account,
               sortOrder: index
             })
           );
-        });
+
+          await persistAccountOrder(nextAccounts, currentAccounts);
+          commitAccounts(nextAccounts);
+          setError(null);
+        } catch (cause) {
+          const mutationError = toError(cause);
+
+          setError(mutationError);
+
+          throw mutationError;
+        }
       });
     },
-    [persistMutation, runMutation]
+    [commitAccounts, runMutation]
   );
 
   return {
@@ -212,6 +225,25 @@ async function persistAccounts(accounts: OtpAccount[]): Promise<void> {
     })
   );
   await setAccountIndex(accounts.map(({ id }) => id));
+}
+
+async function persistAccountOrder(
+  nextAccounts: OtpAccount[],
+  previousAccounts: OtpAccount[]
+): Promise<void> {
+  const previousSortOrderById = new Map(
+    previousAccounts.map(account => [account.id, account.sortOrder])
+  );
+  const changedAccounts = nextAccounts.filter(
+    account => previousSortOrderById.get(account.id) !== account.sortOrder
+  );
+
+  await Promise.all(
+    changedAccounts.map(async ({ secret: _secret, ...record }) => {
+      await setAccountRecord(record);
+    })
+  );
+  await setAccountIndex(nextAccounts.map(({ id }) => id));
 }
 
 function sortAccounts(accounts: OtpAccount[]): OtpAccount[] {
