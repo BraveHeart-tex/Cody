@@ -22,23 +22,11 @@ export default function AddAccountScreen() {
   }, []);
 
   return (
-    <View className="bg-background pt-safe pb-safe flex-1 gap-6 px-6">
-      <View className="gap-4 pt-6">
-        <Button
-          className="self-start"
-          variant="outline"
-          onPress={() => router.back()}
-        >
-          <Text>Back</Text>
-        </Button>
-        <View className="gap-2">
-          <Text className="text-foreground text-3xl font-semibold">
-            Add account
-          </Text>
-          <Text className="text-muted-foreground text-base leading-6">
-            Add an authenticator account with a QR code or setup key.
-          </Text>
-        </View>
+    <View className="bg-background pb-safe flex-1 gap-6 px-6">
+      <View className="pt-6">
+        <Text className="text-muted-foreground text-base leading-6">
+          Add an authenticator account with a QR code or setup key.
+        </Text>
       </View>
 
       <View className="gap-3">

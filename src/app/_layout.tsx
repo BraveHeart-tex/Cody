@@ -48,13 +48,23 @@ export default function RootLayout() {
           headerTintColor: theme.colors.text,
           contentStyle: {
             backgroundColor: theme.colors.background
-          },
-          headerShown: false
+          }
         }}
       >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="scan" />
-        <Stack.Screen name="account-confirm" />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="add-account/index"
+          options={{ title: 'Add account' }}
+        />
+        <Stack.Screen
+          name="add-account/manual"
+          options={{ title: 'Enter setup key' }}
+        />
+        <Stack.Screen name="scan" options={{ title: 'Scan QR code' }} />
+        <Stack.Screen
+          name="account-confirm"
+          options={{ title: 'Review account' }}
+        />
       </Stack>
       <PortalHost />
     </ThemeProvider>

@@ -98,26 +98,14 @@ export default function ManualAddAccountScreen() {
   return (
     <ScrollView
       className="bg-background flex-1"
-      contentContainerClassName="gap-6 px-6 pt-safe pb-safe"
+      contentContainerClassName="gap-6 px-6 pb-safe"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View className="gap-4 pt-6">
-        <Button
-          className="self-start"
-          variant="outline"
-          onPress={() => router.back()}
-        >
-          <Text>Back</Text>
-        </Button>
-        <View className="gap-2">
-          <Text className="text-foreground text-3xl font-semibold">
-            Enter setup key
-          </Text>
-          <Text className="text-muted-foreground text-base leading-6">
-            Add an authenticator account with the manual setup details.
-          </Text>
-        </View>
+      <View className="pt-6">
+        <Text className="text-muted-foreground text-base leading-6">
+          Add an authenticator account with the manual setup details.
+        </Text>
       </View>
 
       <View className="gap-5">
