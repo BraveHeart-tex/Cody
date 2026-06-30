@@ -7,10 +7,8 @@ import { Input } from '@/components/ui/input';
 import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
-import { createAccountId } from '@/features/totp/model/account-id';
-import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
+import { createScannedOtpAccount } from '@/features/totp/model/create-account';
 import { deleteScannerDraft } from '@/features/totp/model/scanner-drafts';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
 import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
 
 interface AccountConfirmFormProps {
@@ -56,19 +54,7 @@ export function AccountConfirmForm({
       return;
     }
 
-    const accountId = createAccountId();
-    const account: OtpAccount = {
-      ...draft,
-      id: accountId,
-      label: trimmedLabel,
-      color: getDefaultAccountColor({
-        id: accountId,
-        issuer: draft.issuer,
-        label: trimmedLabel
-      }),
-      createdAt: Date.now(),
-      sortOrder: 0
-    };
+    const account = createScannedOtpAccount(draft, trimmedLabel);
 
     try {
       setIsSaving(true);

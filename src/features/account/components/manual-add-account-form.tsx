@@ -8,14 +8,12 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
-import { createAccountId } from '@/features/totp/model/account-id';
-import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
+import { createManualOtpAccount } from '@/features/totp/model/create-account';
 import {
   validateManualAccount,
   type ManualTotpDigits,
   type ManualTotpPeriod
 } from '@/features/totp/model/manual-account';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 const PERIOD_OPTIONS: ManualTotpPeriod[] = [30, 60];
 const DIGIT_OPTIONS: ManualTotpDigits[] = [6, 8];
@@ -68,24 +66,13 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       return;
     }
 
-    const accountId = createAccountId();
-    const account: OtpAccount = {
-      id: accountId,
+    const account = createManualOtpAccount({
       issuer: validation.issuer,
       label: validation.label,
       secret: validation.secret,
-      type: 'totp',
-      algorithm: 'SHA1',
       digits,
-      period,
-      color: getDefaultAccountColor({
-        id: accountId,
-        issuer: validation.issuer,
-        label: validation.label
-      }),
-      createdAt: Date.now(),
-      sortOrder: 0
-    };
+      period
+    });
 
     try {
       setIsSaving(true);
