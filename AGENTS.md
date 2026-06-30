@@ -18,6 +18,10 @@ Keys: alphanumeric, `.`, `-`, `_` only. No `:` or `/`.
 
 → See docs/styling.md (load only when writing or reviewing UI code)
 
+## Routes
+
+`src/app` thin. Routes = params/nav/layout/wiring only. Move screen UI → `src/features/<feature>/components`, hooks → `hooks`, logic/helpers → `model`. Shared primitives only in `src/components/ui`. No barrels unless pattern exists. Preserve behavior; boring moves.
+
 ## Tests
 
 Put tests under **tests** dir, never under app dir.

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
+import { getAccountInitial } from '@/features/account/model/account-display';
 import { copyPasscode } from '@/features/account/model/passcode-clipboard';
 import {
   useTotpCountdown,
@@ -385,12 +386,6 @@ function AccountActions({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
-
-function getAccountInitial(account: OtpAccount): string {
-  const source = account.label.trim() || account.issuer.trim();
-
-  return source.charAt(0).toUpperCase() || '?';
 }
 
 function getRemainingProgress(
