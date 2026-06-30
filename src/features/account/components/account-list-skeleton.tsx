@@ -4,7 +4,6 @@ import { View } from 'react-native';
 
 const LOADING_ROW_COUNT = 4;
 
-// TODO: Remove skeletons from the project
 export function AccountListSkeleton() {
   return (
     <View className="pb-safe gap-3">
