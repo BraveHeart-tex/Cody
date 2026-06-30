@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils/cn';
 import { View } from 'react-native';
 
+// TODO: Remove skeletons from the project
 function Skeleton({
   className,
   ...props
