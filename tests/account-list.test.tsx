@@ -195,6 +195,37 @@ describe('AccountList', () => {
     jest.mocked(router.replace).mockReset();
   });
 
+  it('shows a first-account empty state with add actions', async () => {
+    mockAccounts = [];
+    const { getByLabelText, getByText, queryByLabelText } = await render(
+      <AccountList />
+    );
+
+    expect(getByText('Add your first account')).toBeTruthy();
+    expect(getByText(/Scan an authenticator QR code/)).toBeTruthy();
+    expect(getByLabelText('Scan QR code')).toBeTruthy();
+    expect(getByLabelText('Add manually')).toBeTruthy();
+    expect(queryByLabelText('Search accounts')).toBeNull();
+  });
+
+  it('opens the scanner from the first-account empty state', async () => {
+    mockAccounts = [];
+    const { getByLabelText } = await render(<AccountList />);
+
+    await fireEvent.press(getByLabelText('Scan QR code'));
+
+    expect(router.push).toHaveBeenCalledWith('/scan');
+  });
+
+  it('opens manual account entry from the first-account empty state', async () => {
+    mockAccounts = [];
+    const { getByLabelText } = await render(<AccountList />);
+
+    await fireEvent.press(getByLabelText('Add manually'));
+
+    expect(router.push).toHaveBeenCalledWith('/add-account/manual');
+  });
+
   it('deletes an account, returns home, and removes it from the list', async () => {
     const { getByTestId, queryByText } = await render(<AccountList />);
 

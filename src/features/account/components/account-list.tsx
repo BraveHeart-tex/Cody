@@ -8,7 +8,12 @@ import { AccountSearchInput } from '@/features/account/components/account-search
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { router } from 'expo-router';
-import { PlusIcon } from 'lucide-react-native';
+import {
+  KeyboardIcon,
+  PlusIcon,
+  QrCodeIcon,
+  ShieldCheckIcon
+} from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, type ListRenderItemInfo, View } from 'react-native';
 
@@ -26,6 +31,14 @@ export function AccountList() {
 
   const handleAddPress = useCallback(() => {
     router.push('/add-account');
+  }, []);
+
+  const handleScanPress = useCallback(() => {
+    router.push('/scan');
+  }, []);
+
+  const handleManualPress = useCallback(() => {
+    router.push('/add-account/manual');
   }, []);
 
   const handleMovePress = useCallback(() => {
@@ -47,7 +60,6 @@ export function AccountList() {
     async (accountId: string) => {
       await deleteAccount(accountId);
       setActiveAccountId(null);
-      router.replace('/');
     },
     [deleteAccount]
   );
@@ -101,7 +113,14 @@ export function AccountList() {
         />
       }
       ListEmptyComponent={
-        accounts.length === 0 ? AccountListEmpty : AccountListNoSearchResults
+        accounts.length === 0 ? (
+          <AccountListEmpty
+            onManualPress={handleManualPress}
+            onScanPress={handleScanPress}
+          />
+        ) : (
+          AccountListNoSearchResults
+        )
       }
       maxToRenderPerBatch={ACCOUNT_LIST_BATCH_SIZE}
       renderItem={renderItem}
@@ -164,6 +183,10 @@ function AccountListHeader({
 }
 
 function AccountListHeaderSection(props: AccountListHeaderSectionProps) {
+  if (props.accountCount === 0) {
+    return null;
+  }
+
   return (
     <View className="gap-5">
       <AccountSearchInput
@@ -182,14 +205,52 @@ function ListFooterSpacer() {
   return <View className="h-8" />;
 }
 
-function AccountListEmpty() {
+interface AccountListEmptyProps {
+  onManualPress: () => void;
+  onScanPress: () => void;
+}
+
+function AccountListEmpty({
+  onManualPress,
+  onScanPress
+}: AccountListEmptyProps) {
   return (
-    <View className="flex-1 justify-start">
-      {/* TODO: FE-232 Replace this simple card with the polished illustrated empty state. */}
-      <StateCard
-        description="Scan a QR code or enter a setup key to add your first account."
-        title="No accounts yet"
-      />
+    <View className="flex-1 items-center justify-center px-2 py-10">
+      <View className="w-full max-w-sm items-center gap-6">
+        <View className="border-border bg-card size-16 items-center justify-center rounded-full border shadow-sm shadow-black/5">
+          <Icon as={ShieldCheckIcon} className="text-primary" size={28} />
+        </View>
+
+        <View className="gap-2">
+          <Text className="text-foreground text-center text-2xl font-semibold">
+            Add your first account
+          </Text>
+          <Text className="text-muted-foreground text-center text-base leading-6">
+            Scan an authenticator QR code or enter a setup key to start saving
+            codes in Cody.
+          </Text>
+        </View>
+
+        <View className="w-full gap-3">
+          <Button
+            accessibilityLabel="Scan QR code"
+            onPress={onScanPress}
+            size="lg"
+          >
+            <Icon as={QrCodeIcon} />
+            <Text>Scan QR Code</Text>
+          </Button>
+          <Button
+            accessibilityLabel="Add manually"
+            onPress={onManualPress}
+            size="lg"
+            variant="outline"
+          >
+            <Icon as={KeyboardIcon} />
+            <Text>Add Manually</Text>
+          </Button>
+        </View>
+      </View>
     </View>
   );
 }
