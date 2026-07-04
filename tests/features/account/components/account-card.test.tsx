@@ -1,4 +1,4 @@
-/* eslint-disable import/first, @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import {
   cleanup,
@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react-native';
 import { Alert, type AlertButton } from 'react-native';
 
+import { AccountCard } from '@/features/account/components/account-card';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 const mockSetStringAsync = jest.fn<(passcode: string) => Promise<void>>();
@@ -131,11 +132,10 @@ jest.mock('react-native-reanimated', () => {
     LinearTransition: animationBuilder,
     useAnimatedStyle: (styleFactory: () => object) => styleFactory(),
     useSharedValue: (value: number) => ({ value }),
+    withSequence: (...values: number[]) => values[values.length - 1],
     withTiming: (value: number) => value
   };
 });
-
-import { AccountCard } from '@/features/account/components/account-card';
 
 const account: OtpAccount = {
   id: 'account-id',

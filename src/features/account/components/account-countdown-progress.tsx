@@ -1,9 +1,10 @@
-import { memo, useLayoutEffect } from 'react';
+import { memo, useLayoutEffect, useRef } from 'react';
 import { View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withTiming
 } from 'react-native-reanimated';
 
@@ -15,6 +16,8 @@ interface AccountCountdownProgressProps {
   remainingSeconds: number;
 }
 
+const FILL_DURATION_MS = 200;
+
 export const AccountCountdownProgress = memo(function AccountCountdownProgress({
   color,
   period,
@@ -22,20 +25,44 @@ export const AccountCountdownProgress = memo(function AccountCountdownProgress({
   periodStartedAt,
   remainingSeconds
 }: AccountCountdownProgressProps) {
-  const animatedProgress = useSharedValue(1);
+  const initialProgress = getRemainingProgress(
+    Date.now(),
+    periodStartedAt,
+    periodEndsAt
+  );
+  const animatedProgress = useSharedValue(initialProgress);
+  const isFirstRunRef = useRef(true);
 
   useLayoutEffect(() => {
     const now = Date.now();
+    const remainingDuration = Math.max(periodEndsAt - now, 0);
 
-    animatedProgress.value = getRemainingProgress(
-      now,
-      periodStartedAt,
-      periodEndsAt
+    if (isFirstRunRef.current) {
+      isFirstRunRef.current = false;
+      animatedProgress.value = getRemainingProgress(
+        now,
+        periodStartedAt,
+        periodEndsAt
+      );
+
+      animatedProgress.value = withTiming(0, {
+        duration: remainingDuration,
+        easing: Easing.linear
+      });
+
+      return;
+    }
+
+    animatedProgress.value = withSequence(
+      withTiming(1, {
+        duration: FILL_DURATION_MS,
+        easing: Easing.out(Easing.cubic)
+      }),
+      withTiming(0, {
+        duration: Math.max(remainingDuration - FILL_DURATION_MS, 0),
+        easing: Easing.linear
+      })
     );
-    animatedProgress.value = withTiming(0, {
-      duration: Math.max(periodEndsAt - now, 0),
-      easing: Easing.linear
-    });
   }, [animatedProgress, periodEndsAt, periodStartedAt]);
 
   const progressStyle = useAnimatedStyle<ViewStyle>(
