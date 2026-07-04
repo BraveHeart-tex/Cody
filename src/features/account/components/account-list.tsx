@@ -173,7 +173,7 @@ function AccountListHeader({
 
   return (
     <View className="flex-row items-center justify-between gap-4">
-      <Text className="text-foreground text-xl font-semibold">{title}</Text>
+      <Text variant="h3">{title}</Text>
       <Button
         accessibilityLabel="Add account"
         onPress={onAddPress}
