@@ -8,8 +8,8 @@ import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createScannedOtpAccount } from '@/features/totp/model/create-account';
-import { deleteScannerDraft } from '@/features/totp/model/scanner-drafts';
 import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
+import { deleteScannerDraft } from '@/features/totp/model/scanner-drafts';
 
 interface AccountConfirmFormProps {
   draft: TotpDraft | null;
@@ -109,18 +109,13 @@ export function AccountConfirmForm({
   return (
     <ScrollView
       className="bg-background flex-1"
-      contentContainerClassName="gap-8 px-6 pt-safe pb-safe"
+      contentContainerClassName="gap-8 px-6 pb-safe"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View className="gap-2">
-        <Text className="text-foreground text-3xl font-semibold">
-          Review account
-        </Text>
-        <Text className="text-muted-foreground text-base leading-6">
-          Confirm the scanned details before saving this account.
-        </Text>
-      </View>
+      <Text className="text-muted-foreground text-base leading-6">
+        Confirm the scanned details before saving this account.
+      </Text>
 
       <View className="border-border gap-4 rounded-lg border p-4">
         <DetailRow label="Issuer" value={draft.issuer || 'Not provided'} />

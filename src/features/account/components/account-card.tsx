@@ -42,8 +42,8 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
-  FadeIn,
-  FadeOut,
+  FadeInUp,
+  FadeOutUp,
   LinearTransition,
   useAnimatedStyle,
   useSharedValue,
@@ -61,11 +61,16 @@ interface AccountCardProps {
 const DEFAULT_PERIOD: TotpPeriod = 30;
 const CODE_PLACEHOLDER = '******';
 const COPIED_FEEDBACK_MS = 1500;
-const CARD_LAYOUT_TRANSITION = LinearTransition.duration(220).easing(
-  Easing.out(Easing.cubic)
-);
-const DETAILS_ENTERING = FadeIn.duration(160).easing(Easing.out(Easing.cubic));
-const DETAILS_EXITING = FadeOut.duration(120).easing(Easing.in(Easing.cubic));
+const CARD_LAYOUT_TRANSITION = LinearTransition.springify()
+  .dampingRatio(1)
+  .stiffness(200);
+
+const DETAILS_ENTERING = FadeInUp.springify()
+  .dampingRatio(1)
+  .stiffness(200)
+  .withInitialValues({ transform: [{ translateY: -8 }] });
+
+const DETAILS_EXITING = FadeOutUp.duration(140).easing(Easing.in(Easing.cubic));
 
 export const AccountCard = memo(function AccountCard({
   account,
