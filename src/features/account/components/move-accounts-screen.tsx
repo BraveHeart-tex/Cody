@@ -60,7 +60,7 @@ export function MoveAccountsScreen() {
 
   if (isLoading) {
     return (
-      <View className="bg-background flex-1 px-6 pt-6">
+      <View className="bg-background flex-1 px-6">
         <AccountListSkeleton />
       </View>
     );
@@ -68,7 +68,7 @@ export function MoveAccountsScreen() {
 
   if (error != null && accounts.length === 0) {
     return (
-      <View className="bg-background flex-1 px-6 pt-6">
+      <View className="bg-background flex-1 px-6">
         <StateCard
           description="Try closing and reopening the app. Your saved secrets were not changed."
           title="Could not load saved accounts"
@@ -79,7 +79,7 @@ export function MoveAccountsScreen() {
 
   if (accounts.length === 0) {
     return (
-      <View className="bg-background flex-1 px-6 pt-6">
+      <View className="bg-background flex-1 px-6">
         <StateCard
           description="Add an account before arranging your list."
           title="No accounts to move"
@@ -92,7 +92,7 @@ export function MoveAccountsScreen() {
     <Animated.ScrollView
       ref={scrollableRef}
       className="bg-background flex-1"
-      contentContainerClassName="gap-5 px-6 pt-6 pb-safe"
+      contentContainerClassName="gap-5 px-6 pb-safe"
       showsVerticalScrollIndicator={false}
     >
       {saveError != null ? (

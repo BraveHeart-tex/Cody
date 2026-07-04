@@ -1,4 +1,5 @@
 import { MoveAccountsDoneButton } from '@/features/account/components/move-accounts-done-button';
+import { useThemeMode } from '@/features/settings/hooks/use-theme-mode';
 import '@/global.css';
 import { NAV_THEME } from '@/theme';
 import { HankenGrotesk_400Regular } from '@expo-google-fonts/hanken-grotesk/400Regular';
@@ -27,6 +28,9 @@ export default function RootLayout() {
     JetBrainsMono_500Medium,
     JetBrainsMono_600SemiBold
   });
+
+  useThemeMode();
+
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
 
   if (!fontsLoaded) {
@@ -75,6 +79,7 @@ export default function RootLayout() {
             name="account-confirm"
             options={{ title: 'Review account' }}
           />
+          <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         </Stack>
         <PortalHost />
       </ThemeProvider>
