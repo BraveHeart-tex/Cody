@@ -129,14 +129,16 @@ jest.mock('@/features/account/components/account-card', () => {
                 },
                 React.createElement(Text, null, 'Delete')
               ),
-              React.createElement(
-                Pressable,
-                {
-                  onPress: onMove,
-                  testID: `account-move-${account.id}`
-                },
-                React.createElement(Text, null, 'Move')
-              )
+              onMove
+                ? React.createElement(
+                    Pressable,
+                    {
+                      onPress: onMove,
+                      testID: `account-move-${account.id}`
+                    },
+                    React.createElement(Text, null, 'Move')
+                  )
+                : null
             )
           : null
       )
@@ -226,7 +228,7 @@ describe('AccountList', () => {
     expect(router.push).toHaveBeenCalledWith('/add-account/manual');
   });
 
-  it('deletes an account, returns home, and removes it from the list', async () => {
+  it('deletes an account in place and removes it from the list', async () => {
     const { getByTestId, queryByText } = await render(<AccountList />);
 
     expect(queryByText('GitHub')).toBeTruthy();
@@ -237,9 +239,7 @@ describe('AccountList', () => {
     await waitFor(() => {
       expect(mockDeleteAccount).toHaveBeenCalledWith('account-id');
     });
-    await waitFor(() => {
-      expect(router.replace).toHaveBeenCalledWith('/');
-    });
+    expect(router.replace).not.toHaveBeenCalled();
 
     await waitFor(() => {
       expect(queryByText('GitHub')).toBeNull();
@@ -294,6 +294,7 @@ describe('AccountList', () => {
   });
 
   it('opens the move accounts screen from an active account', async () => {
+    mockAccounts = [account, secondAccount];
     const { getByTestId } = await render(<AccountList />);
 
     await fireEvent.press(getByTestId('account-card-account-id'));

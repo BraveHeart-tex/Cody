@@ -21,13 +21,13 @@ const LOCK_TIMEOUT_LABELS: Record<LockTimeoutSeconds, string> = {
 };
 
 const LOCK_TIMEOUT_LAYOUT_TRANSITION = LinearTransition.springify()
-  .damping(20)
+  .dampingRatio(1)
   .stiffness(200);
 
 const LOCK_TIMEOUT_ENTERING = FadeInUp.springify()
-  .damping(20)
+  .dampingRatio(1)
   .stiffness(200)
-  .withInitialValues({ transform: [{ translateY: -6 }] });
+  .withInitialValues({ transform: [{ translateY: -8 }] });
 
 const LOCK_TIMEOUT_EXITING = FadeOutUp.duration(140).easing(
   Easing.in(Easing.cubic)

@@ -24,4 +24,4 @@ Keys: alphanumeric, `.`, `-`, `_` only. No `:` or `/`.
 
 ## Tests
 
-Put tests under **tests** dir, never under app dir.
+Tests: `tests/features/<feature>/<layer>`, never `src/app`.

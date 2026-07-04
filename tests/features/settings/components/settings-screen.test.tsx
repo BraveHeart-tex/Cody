@@ -135,6 +135,7 @@ jest.mock('react-native-reanimated', () => {
   const { View } = require('react-native');
   const animationBuilder = {
     damping: () => animationBuilder,
+    dampingRatio: () => animationBuilder,
     duration: () => animationBuilder,
     easing: () => animationBuilder,
     springify: () => animationBuilder,
