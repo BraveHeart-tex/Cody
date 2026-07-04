@@ -92,11 +92,9 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View className="pt-6">
-        <Text className="text-muted-foreground text-base leading-6">
-          Add an authenticator account with the manual setup details.
-        </Text>
-      </View>
+      <Text className="text-muted-foreground text-base leading-6">
+        Add an authenticator account with the manual setup details.
+      </Text>
 
       <View className="gap-5">
         <Field label="Issuer">

@@ -21,11 +21,9 @@ export function AddAccountOptions({
 }: AddAccountOptionsProps) {
   return (
     <View className="bg-background pb-safe flex-1 gap-6 px-6">
-      <View className="pt-6">
-        <Text className="text-muted-foreground text-base leading-6">
-          Add an authenticator account with a QR code or setup key.
-        </Text>
-      </View>
+      <Text className="text-muted-foreground text-base leading-6">
+        Add an authenticator account with a QR code or setup key.
+      </Text>
 
       <View className="gap-3">
         <Card className="rounded-lg py-0">

@@ -113,7 +113,7 @@ export function AccountConfirmForm({
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View className="gap-2 pt-6">
+      <View className="gap-2">
         <Text className="text-foreground text-3xl font-semibold">
           Review account
         </Text>
