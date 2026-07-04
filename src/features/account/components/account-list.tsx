@@ -70,11 +70,17 @@ export function AccountList() {
         account={item}
         isActive={item.id === activeAccountId}
         onDelete={handleAccountDelete}
-        onMove={handleMovePress}
+        onMove={accounts.length > 1 ? handleMovePress : undefined}
         onPress={handleAccountPress}
       />
     ),
-    [activeAccountId, handleAccountDelete, handleAccountPress, handleMovePress]
+    [
+      accounts.length,
+      activeAccountId,
+      handleAccountDelete,
+      handleAccountPress,
+      handleMovePress
+    ]
   );
 
   if (isLoading) {

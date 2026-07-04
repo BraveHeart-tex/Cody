@@ -367,9 +367,11 @@ function AccountActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-44 p-1.5">
-        <DropdownMenuItem className="min-h-12 px-3" onPress={onMove}>
-          <Text className="text-base">Move</Text>
-        </DropdownMenuItem>
+        {onMove ? (
+          <DropdownMenuItem className="min-h-12 px-3" onPress={onMove}>
+            <Text className="text-base">Move</Text>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem className="min-h-12 px-3">
           <Text className="text-base">Rename</Text>
         </DropdownMenuItem>
