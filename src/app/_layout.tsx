@@ -1,5 +1,5 @@
 import { MoveAccountsDoneButton } from '@/features/account/components/move-accounts-done-button';
-import { useThemeMode } from '@/features/settings/hooks/use-theme-mode';
+import { useSettingsStore } from '@/features/settings/store/settings-store';
 import '@/global.css';
 import { NAV_THEME } from '@/theme';
 import { HankenGrotesk_400Regular } from '@expo-google-fonts/hanken-grotesk/400Regular';
@@ -14,8 +14,13 @@ import { PortalHost } from '@rn-primitives/portal';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { ThemeProvider } from 'expo-router/react-navigation';
-import { useColorScheme } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
+import { useEffect, useLayoutEffect } from 'react';
+import { Appearance, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -29,18 +34,45 @@ export default function RootLayout() {
     JetBrainsMono_600SemiBold
   });
 
-  useThemeMode();
+  const loadSettings = useSettingsStore(state => state.loadSettings);
+  const loadStatus = useSettingsStore(state => state.loadStatus);
+  const themeMode = useSettingsStore(state => state.settings.themeMode);
 
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  useEffect(() => {
+    void loadSettings().catch(() => undefined);
+  }, [loadSettings]);
 
-  if (!fontsLoaded) {
+  const systemScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const scheme = themeMode === 'system' ? systemScheme : themeMode;
+  const theme = NAV_THEME[scheme];
+  const isReady =
+    fontsLoaded && (loadStatus === 'loaded' || loadStatus === 'failed');
+
+  useLayoutEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    Appearance.setColorScheme(
+      themeMode === 'system' ? 'unspecified' : themeMode
+    );
+    void SystemUI.setBackgroundColorAsync(theme.colors.background);
+  }, [isReady, theme.colors.background, themeMode]);
+
+  useEffect(() => {
+    if (isReady) {
+      void SplashScreen.hideAsync();
+    }
+  }, [isReady]);
+
+  if (!isReady) {
     return null;
   }
 
-  const theme = NAV_THEME[scheme];
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView
+      style={{ backgroundColor: theme.colors.background, flex: 1 }}
+    >
       <ThemeProvider value={theme}>
         <Stack
           screenOptions={{

@@ -5,9 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
+    "backgroundColor": "#F9F8F6",
     "scheme": "cody",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "backgroundColor": "#F9F8F6",
       "icon": "./assets/expo.icon"
     },
     "android": {
@@ -25,11 +27,15 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#1B1B1D",
+          "backgroundColor": "#F9F8F6",
+          "dark": {
+            "backgroundColor": "#111013"
+          },
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 220
         }
       ],
+      "expo-system-ui",
       "expo-secure-store",
       [
         "expo-local-authentication",
