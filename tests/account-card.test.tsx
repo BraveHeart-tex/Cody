@@ -106,8 +106,12 @@ jest.mock('react-native-reanimated', () => {
   const React = require('react');
   const { View } = require('react-native');
   const animationBuilder = {
+    dampingRatio: () => animationBuilder,
     duration: () => animationBuilder,
-    easing: () => animationBuilder
+    easing: () => animationBuilder,
+    springify: () => animationBuilder,
+    stiffness: () => animationBuilder,
+    withInitialValues: () => animationBuilder
   };
 
   return {
@@ -122,8 +126,8 @@ jest.mock('react-native-reanimated', () => {
       linear: (value: number) => value,
       out: (easing: (value: number) => number) => easing
     },
-    FadeIn: animationBuilder,
-    FadeOut: animationBuilder,
+    FadeInUp: animationBuilder,
+    FadeOutUp: animationBuilder,
     LinearTransition: animationBuilder,
     useAnimatedStyle: (styleFactory: () => object) => styleFactory(),
     useSharedValue: (value: number) => ({ value }),
@@ -180,6 +184,7 @@ describe('AccountCard', () => {
         account={account}
         isActive
         onDelete={jest.fn()}
+        onMove={jest.fn()}
         onPress={jest.fn()}
       />
     );

@@ -1,53 +1,23 @@
-import { Button } from '@/components/ui/button';
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { Icon } from '@/components/ui/icon';
-import { Text } from '@/components/ui/text';
+import { AccountActions } from '@/features/account/components/account-actions';
+import { AccountCardDetails } from '@/features/account/components/account-card-details';
+import { AccountInitial } from '@/features/account/components/account-initial';
 import { getAccountInitial } from '@/features/account/model/account-display';
-import { copyPasscode } from '@/features/account/model/passcode-clipboard';
-import {
-  useTotpCountdown,
-  type TotpPeriod
-} from '@/features/totp/hooks/use-totp-countdown';
+import type { TotpPeriod } from '@/features/totp/hooks/use-totp-countdown';
 import { getAccountColor } from '@/features/totp/model/account-colors';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
-import { generateTotpCode } from '@/features/totp/model/totp-code';
-import * as Haptics from 'expo-haptics';
-import { CheckIcon, CopyIcon, EllipsisIcon } from 'lucide-react-native';
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState
-} from 'react';
-import {
-  Alert,
-  Pressable,
-  View,
-  type GestureResponderEvent,
-  type ViewStyle
-} from 'react-native';
+import { memo, useCallback, useMemo } from 'react';
+import { Pressable, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   FadeInUp,
   FadeOutUp,
-  LinearTransition,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming
+  LinearTransition
 } from 'react-native-reanimated';
 
 interface AccountCardProps {
@@ -59,8 +29,6 @@ interface AccountCardProps {
 }
 
 const DEFAULT_PERIOD: TotpPeriod = 30;
-const CODE_PLACEHOLDER = '******';
-const COPIED_FEEDBACK_MS = 1500;
 const CARD_LAYOUT_TRANSITION = LinearTransition.springify()
   .dampingRatio(1)
   .stiffness(200);
@@ -161,257 +129,6 @@ export const AccountCard = memo(function AccountCard({
     </Animated.View>
   );
 }, areAccountCardPropsEqual);
-
-function AccountCardDetails({
-  account,
-  color,
-  issuer,
-  period
-}: {
-  account: OtpAccount;
-  color: string;
-  issuer: string;
-  period: TotpPeriod;
-}) {
-  const [isCopied, setIsCopied] = useState(false);
-  const countdown = useTotpCountdown(period);
-  const code = useMemo(
-    () =>
-      generateTotpCode({
-        secret: account.secret,
-        algorithm: account.algorithm,
-        period,
-        digits: account.digits,
-        timestamp: countdown.periodStartedAt
-      }) || CODE_PLACEHOLDER,
-    [
-      account.algorithm,
-      account.digits,
-      account.secret,
-      countdown.periodStartedAt,
-      period
-    ]
-  );
-
-  useEffect(() => {
-    if (!isCopied) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      setIsCopied(false);
-    }, COPIED_FEEDBACK_MS);
-
-    return () => clearTimeout(timeoutId);
-  }, [isCopied]);
-
-  const handleCopyPress = useCallback(
-    async (event: GestureResponderEvent) => {
-      event.stopPropagation();
-      await copyPasscode(code);
-      setIsCopied(true);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    },
-    [code]
-  );
-
-  return (
-    <CardContent className="gap-4 px-4">
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="w-full min-w-0 flex-1 flex-row items-center">
-          <Text className="text-base">Passcode</Text>
-          <Text
-            className="text-foreground min-w-0 flex-1 text-center font-mono text-3xl font-semibold tracking-widest!"
-            numberOfLines={1}
-          >
-            {code}
-          </Text>
-        </View>
-
-        <Button
-          accessibilityLabel={
-            isCopied ? 'Passcode copied' : `Copy ${issuer} passcode`
-          }
-          onPress={handleCopyPress}
-          size="icon"
-          testID="account-card-copy"
-          variant="ghost"
-        >
-          <Icon as={isCopied ? CheckIcon : CopyIcon} />
-        </Button>
-      </View>
-
-      <AccountCountdownProgress
-        color={color}
-        period={period}
-        periodEndsAt={countdown.periodEndsAt}
-        periodStartedAt={countdown.periodStartedAt}
-        remainingSeconds={countdown.remainingSeconds}
-      />
-
-      <Text className="text-muted-foreground text-center text-xs">
-        {countdown.remainingSeconds}s until refresh
-      </Text>
-    </CardContent>
-  );
-}
-
-const AccountCountdownProgress = memo(function AccountCountdownProgress({
-  color,
-  period,
-  periodEndsAt,
-  periodStartedAt,
-  remainingSeconds
-}: {
-  color: string;
-  period: number;
-  periodEndsAt: number;
-  periodStartedAt: number;
-  remainingSeconds: number;
-}) {
-  const animatedProgress = useSharedValue(1);
-
-  useLayoutEffect(() => {
-    const now = Date.now();
-
-    animatedProgress.value = getRemainingProgress(
-      now,
-      periodStartedAt,
-      periodEndsAt
-    );
-    animatedProgress.value = withTiming(0, {
-      duration: Math.max(periodEndsAt - now, 0),
-      easing: Easing.linear
-    });
-  }, [animatedProgress, periodEndsAt, periodStartedAt]);
-
-  const progressStyle = useAnimatedStyle<ViewStyle>(
-    () => ({
-      backgroundColor: color,
-      transform: [{ scaleX: animatedProgress.value }],
-      width: '100%'
-    }),
-    [color]
-  );
-
-  return (
-    <View
-      accessibilityLabel={`${remainingSeconds}s until refresh`}
-      accessibilityRole="progressbar"
-      accessibilityValue={{
-        max: period,
-        min: 0,
-        now: remainingSeconds
-      }}
-      className="bg-muted h-1 overflow-hidden rounded-full"
-      testID="account-card-progress"
-    >
-      <Animated.View className="h-full rounded-full" style={progressStyle} />
-    </View>
-  );
-});
-
-function AccountInitial({
-  initial,
-  style
-}: {
-  initial: string;
-  style: ViewStyle;
-}) {
-  return (
-    <View
-      accessibilityLabel={`Account icon ${initial}`}
-      className="h-11 w-11 items-center justify-center rounded-full"
-      style={style}
-    >
-      <Text className="text-primary-foreground text-lg font-semibold">
-        {initial}
-      </Text>
-    </View>
-  );
-}
-
-function AccountActions({
-  account,
-  issuer,
-  onDelete,
-  onMove
-}: {
-  account: OtpAccount;
-  issuer: string;
-  onDelete: (accountId: string) => void;
-  onMove?: () => void;
-}) {
-  const handleDeletePress = useCallback(() => {
-    Alert.alert(
-      'Delete account?',
-      `This permanently deletes ${issuer} (${account.label}) from this device. This cannot be undone.`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Delete',
-          onPress: () => onDelete(account.id),
-          style: 'destructive'
-        }
-      ]
-    );
-  }, [account.id, account.label, issuer, onDelete]);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          accessibilityLabel="Account actions"
-          size="icon"
-          variant="ghost"
-        >
-          <Icon as={EllipsisIcon} />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-44 p-1.5">
-        {onMove ? (
-          <DropdownMenuItem className="min-h-12 px-3" onPress={onMove}>
-            <Text className="text-base">Move</Text>
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem className="min-h-12 px-3">
-          <Text className="text-base">Rename</Text>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-12 px-3">
-          <Text className="text-base">Customize</Text>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="min-h-12 px-3"
-          onPress={handleDeletePress}
-          variant="destructive"
-        >
-          <Text className="text-base">Delete</Text>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function getRemainingProgress(
-  timestamp: number,
-  periodStartedAt: number,
-  periodEndsAt: number
-): number {
-  const periodDuration = periodEndsAt - periodStartedAt;
-
-  if (periodDuration <= 0) {
-    return 0;
-  }
-
-  return clamp((periodEndsAt - timestamp) / periodDuration, 0, 1);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
 
 function areAccountCardPropsEqual(
   previous: AccountCardProps,
