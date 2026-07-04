@@ -4,11 +4,11 @@
 export const THEME = {
   light: {
     background: 'hsl(35 20% 97%)',
-    foreground: 'hsl(240 14% 9%)',
+    foreground: 'hsl(35 10% 10%)',
     card: 'hsl(30 25% 99%)',
-    cardForeground: 'hsl(240 14% 9%)',
+    cardForeground: 'hsl(35 10% 10%)',
     popover: 'hsl(30 25% 99%)',
-    popoverForeground: 'hsl(240 14% 9%)',
+    popoverForeground: 'hsl(35 10% 10%)',
     primary: 'hsl(258 76% 59%)',
     primaryForeground: 'hsl(0 0% 100%)',
     secondary: 'hsl(35 15% 91%)',
@@ -31,7 +31,7 @@ export const THEME = {
     chart5: 'hsl(340 72% 58%)'
   },
   dark: {
-    background: 'hsl(240 8% 7%)',
+    background: 'hsl(248 8% 7%)',
     foreground: 'hsl(35 8% 84%)',
     card: 'hsl(248 6% 12%)',
     cardForeground: 'hsl(35 8% 84%)',

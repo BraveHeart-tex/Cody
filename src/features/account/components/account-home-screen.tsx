@@ -16,7 +16,7 @@ export function AccountHomeScreen() {
   return (
     <View className="bg-background pt-safe flex-1 px-6">
       <View className="flex-row items-center justify-between gap-6 pt-6 pb-6">
-        <Text className="text-foreground text-4xl font-semibold">Cody</Text>
+        <Text variant="h1">Cody</Text>
         {/* TODO: Move this to settings scren after testing */}
         <Button onPress={handleThemeChange} variant="outline" size="icon">
           <Icon as={scheme === 'dark' ? SunIcon : MoonIcon} />
