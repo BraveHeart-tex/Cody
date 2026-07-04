@@ -9,14 +9,16 @@ import {
   CameraView,
   useCameraPermissions
 } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 
 export function ScannerView() {
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [footerHeight, setFooterHeight] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
   const hasNavigatedRef = useRef(false);
 
@@ -64,12 +66,22 @@ export function ScannerView() {
 
     hasNavigatedRef.current = true;
 
+    triggerScanSuccessFeedback();
+
     const draftId = createScannerDraft(parsed.account);
 
     router.push({
       pathname: '/account-confirm',
       params: { draftId }
     });
+  }, []);
+
+  const handleFooterLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+
+    setFooterHeight(currentHeight =>
+      Math.abs(currentHeight - nextHeight) < 1 ? currentHeight : nextHeight
+    );
   }, []);
 
   if (permission == null) {
@@ -114,19 +126,26 @@ export function ScannerView() {
             onBarcodeScanned={error == null ? handleBarcodeScanned : undefined}
             style={cameraStyles.camera}
           />
-          <ScannerFrame />
+          <ScannerFrame verticalOffset={footerHeight / -2} />
         </>
       ) : null}
 
       <ScannerFooter
         error={error}
         cameraError={cameraError}
+        onLayout={handleFooterLayout}
         onRetryScan={() => {
           setError(null);
         }}
       />
     </View>
   );
+}
+
+function triggerScanSuccessFeedback() {
+  void Haptics.notificationAsync(
+    Haptics.NotificationFeedbackType.Success
+  ).catch(() => undefined);
 }
 
 const cameraStyles = StyleSheet.create({
@@ -138,10 +157,12 @@ const cameraStyles = StyleSheet.create({
 function ScannerFooter({
   error,
   cameraError,
+  onLayout,
   onRetryScan
 }: {
   error: string | null;
   cameraError: string | null;
+  onLayout: (event: LayoutChangeEvent) => void;
   onRetryScan: () => void;
 }) {
   const handleRetryScan = useCallback(() => {
@@ -149,7 +170,10 @@ function ScannerFooter({
   }, [onRetryScan]);
 
   return (
-    <View className="bg-background/70 absolute inset-x-0 bottom-0 gap-4 px-6 pt-6 pb-12">
+    <View
+      className="bg-background/70 absolute inset-x-0 bottom-0 gap-4 px-6 pt-6 pb-12"
+      onLayout={onLayout}
+    >
       <Text className="text-foreground text-center text-lg font-semibold">
         Scan authenticator QR code
       </Text>

@@ -84,7 +84,7 @@ export function AccountList() {
   );
 
   if (isLoading) {
-    return <AccountListSkeleton />;
+    return <AccountListSkeleton showHeader />;
   }
 
   if (error != null) {
