@@ -85,6 +85,7 @@ jest.mock('@/components/ui/text', () => {
   const { Text } = require('react-native');
 
   return {
+    TextClassContext: React.createContext(undefined),
     Text: ({ children, ...props }: React.ComponentProps<typeof Text>) =>
       React.createElement(Text, props, children)
   };
@@ -153,7 +154,11 @@ describe('AccountConfirmScreen', () => {
       'user@example.com'
     );
     expect(queryByText('Type')).toBeNull();
-    expect(queryByText('Algorithm')).toBeNull();
+    expect(getByText('Algorithm')).toBeTruthy();
+    expect(getByText('SHA-1')).toBeTruthy();
+    expect(getByText('6 digits')).toBeTruthy();
+    expect(getByText('30 seconds')).toBeTruthy();
+    expect(queryByText(scannedDraft.secret)).toBeNull();
     expect(queryByText('Digits')).toBeNull();
     expect(queryByText('Period')).toBeNull();
   });
@@ -286,5 +291,69 @@ describe('AccountConfirmScreen', () => {
     await fireEvent.press(getByText('Save Account'));
     await waitFor(() => expect(mockAddAccount).toHaveBeenCalledTimes(1));
     expect(mockDeleteScannerDraft).toHaveBeenCalledWith('qr-draft-id');
+  });
+  it('uses a neutral identity when the issuer is missing', async () => {
+    mockGetScannerDraft.mockReturnValue({ ...scannedDraft, issuer: '' });
+    const { getByText, queryByText } = await render(<AccountConfirmScreen />);
+
+    expect(getByText('Authenticator account')).toBeTruthy();
+    expect(queryByText(scannedDraft.secret)).toBeNull();
+  });
+
+  it('returns an unavailable draft to the scanner', async () => {
+    mockGetScannerDraft.mockReturnValue(null);
+    const { getByText } = await render(<AccountConfirmScreen />);
+
+    expect(getByText('Scan session expired')).toBeTruthy();
+    await fireEvent.press(getByText('Back to Scanner'));
+    expect(router.replace).toHaveBeenCalledWith('/scan');
+    expect(mockAddAccount).not.toHaveBeenCalled();
+  });
+
+  it('keeps edited details and the draft after a save failure, then retries', async () => {
+    mockAddAccount
+      .mockRejectedValueOnce(new Error('Storage unavailable'))
+      .mockResolvedValueOnce(undefined);
+    const { getByText, getByLabelText } = await render(
+      <AccountConfirmScreen />
+    );
+
+    await fireEvent.changeText(
+      getByLabelText('Account label'),
+      'synthetic@example.com'
+    );
+    await fireEvent.press(getByText('Save Account'));
+    await waitFor(() =>
+      expect(getByText('Could not save this account. Try again.')).toBeTruthy()
+    );
+    expect(getByLabelText('Account label').props.value).toBe(
+      'synthetic@example.com'
+    );
+    expect(mockDeleteScannerDraft).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+    await fireEvent.press(getByText('Save Account'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+    expect(mockAddAccount.mock.calls[1][0]).toBe(
+      mockAddAccount.mock.calls[0][0]
+    );
+  });
+
+  it('blocks a duplicate before saving and offers Cancel', async () => {
+    mockAccounts = [
+      {
+        ...scannedDraft,
+        id: 'existing',
+        color: 'violet',
+        createdAt: 1,
+        sortOrder: 0
+      } as UseAccountsResult['accounts'][number]
+    ];
+    const { getByText } = await render(<AccountConfirmScreen />);
+
+    expect(getByText('This account is already saved.')).toBeTruthy();
+    await fireEvent.press(getByText('Save Account'));
+    expect(mockAddAccount).not.toHaveBeenCalled();
+    await fireEvent.press(getByText('Cancel'));
+    expect(router.back).toHaveBeenCalled();
   });
 });

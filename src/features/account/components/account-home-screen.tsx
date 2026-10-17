@@ -21,7 +21,9 @@ export function AccountHomeScreen() {
             className="size-11 rounded-xl"
             source={require('../../../../assets/images/icon.png')}
           />
-          <Text variant="h1">Cody</Text>
+          <Text variant="h1" className="text-left tracking-normal">
+            Cody
+          </Text>
         </View>
         <Button
           accessibilityLabel="Open settings"

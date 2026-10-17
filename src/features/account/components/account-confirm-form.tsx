@@ -6,6 +6,13 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
+import { Icon } from '@/components/ui/icon';
+import {
+  ScanLine,
+  ShieldCheck,
+  TriangleAlert,
+  UserRound
+} from 'lucide-react-native';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createScannedOtpAccount } from '@/features/totp/model/create-account';
 import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
@@ -132,19 +139,26 @@ export function AccountConfirmForm({
 
   if (draft == null) {
     return (
-      <View className="bg-background flex-1 items-center justify-center gap-5 px-8">
+      <ScrollView
+        className="bg-background flex-1"
+        contentContainerClassName="grow items-center justify-center gap-6 px-8 py-8 pb-safe"
+      >
+        <View className="bg-accent rounded-full p-6">
+          <Icon as={ScanLine} className="text-accent-foreground size-10" />
+        </View>
         <View className="gap-2">
           <Text className="text-foreground text-center text-2xl font-semibold">
-            QR code draft expired
+            Scan session expired
           </Text>
           <Text className="text-muted-foreground text-center text-base leading-6">
-            Scan the QR code again to review the account details.
+            This scanned account is no longer available. Scan the QR code again
+            to continue.
           </Text>
         </View>
         <Button onPress={onDraftExpiredScan}>
           <Text>Back to Scanner</Text>
         </Button>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -152,7 +166,6 @@ export function AccountConfirmForm({
     error == null
       ? null
       : 'Cody could not read the saved accounts. Retry to try again.';
-  const statusMessage = secretError ?? saveError ?? storageError ?? labelError;
   const isSaveDisabled =
     isLoading ||
     isSaving ||
@@ -164,16 +177,60 @@ export function AccountConfirmForm({
   return (
     <ScrollView
       className="bg-background flex-1"
-      contentContainerClassName="gap-8 px-6 pb-safe"
+      contentContainerClassName="gap-6 px-6 pt-3 pb-safe"
+      automaticallyAdjustKeyboardInsets
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       <Text className="text-muted-foreground text-base leading-6">
-        Confirm the scanned details before saving this account.
+        Check the account details before adding it to Cody.
       </Text>
 
-      <View className="border-border gap-4 rounded-lg border p-4">
-        <DetailRow label="Issuer" value={draft.issuer || 'Not provided'} />
+      <View className="flex-row items-center gap-4">
+        <View className="bg-accent size-16 items-center justify-center rounded-2xl">
+          {draft.issuer.trim() ? (
+            <Text className="text-accent-foreground text-xl font-bold">
+              {Array.from(draft.issuer.trim())
+                .slice(0, 1)
+                .join('')
+                .toUpperCase()}
+            </Text>
+          ) : (
+            <Icon as={UserRound} className="text-accent-foreground size-7" />
+          )}
+        </View>
+        <View className="flex-1 gap-1">
+          <Text
+            accessibilityRole="header"
+            className="text-foreground text-2xl font-bold"
+          >
+            {draft.issuer.trim() || 'Authenticator account'}
+          </Text>
+          <Text className="text-muted-foreground text-sm">
+            Scanned authenticator · TOTP
+          </Text>
+        </View>
+      </View>
+
+      {isDuplicate ? (
+        <ReviewNotice
+          title="Account already added"
+          description="This account is already saved."
+        />
+      ) : null}
+      {secretError != null ? (
+        <ReviewNotice
+          title="Can't use these account details"
+          description={secretError}
+        />
+      ) : storageError != null ? (
+        <ReviewNotice
+          title="Couldn't check saved accounts"
+          description={storageError}
+        />
+      ) : null}
+
+      <View>
         <Field
           isInvalid={labelError != null}
           label="Account label"
@@ -183,21 +240,59 @@ export function AccountConfirmForm({
         >
           <Input
             aria-invalid={labelError != null}
+            aria-describedby={
+              labelError != null ? 'account-label-error' : undefined
+            }
+            editable={!isSaving}
+            placeholder="Account name or email"
             accessibilityLabel="Account label"
             autoCapitalize="none"
             autoCorrect={false}
             onChangeText={setLabel}
             value={label}
           />
+          {labelError != null ? (
+            <Text
+              nativeID="account-label-error"
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              className="text-destructive text-sm leading-5"
+            >
+              {labelError}
+            </Text>
+          ) : null}
         </Field>
       </View>
 
-      {isDuplicate ? (
-        <StatusMessage value="This account is already saved." />
-      ) : null}
-      {statusMessage != null ? <StatusMessage value={statusMessage} /> : null}
+      <View className="border-border bg-card gap-4 rounded-xl border p-4">
+        <DetailRow label="Code length" value={`${draft.digits} digits`} />
+        <DetailRow
+          label="Refresh interval"
+          value={`${draft.period ?? 30} seconds`}
+        />
+        <DetailRow
+          label="Algorithm"
+          value={draft.algorithm.replace('SHA', 'SHA-')}
+        />
+      </View>
+      <View className="flex-row items-start gap-3">
+        <Icon
+          as={ShieldCheck}
+          className="text-muted-foreground mt-0.5 size-5"
+        />
+        <Text className="text-muted-foreground flex-1 text-sm leading-5">
+          Setup keys are never displayed here and remain stored locally on your
+          device.
+        </Text>
+      </View>
 
-      <View className="gap-3">
+      <View className="gap-3 pb-6">
+        {saveError != null &&
+        secretError == null &&
+        storageError == null &&
+        !isDuplicate ? (
+          <StatusMessage value={saveError} />
+        ) : null}
         {storageError != null || isRetrying ? (
           <Button
             accessibilityLabel="Retry loading saved accounts"
@@ -213,7 +308,7 @@ export function AccountConfirmForm({
             {isSaving ? 'Saving...' : isLoading ? 'Loading...' : 'Save Account'}
           </Text>
         </Button>
-        <Button variant="outline" onPress={onCancel}>
+        <Button variant="outline" disabled={isSaving} onPress={onCancel}>
           <Text>Cancel</Text>
         </Button>
       </View>
@@ -228,9 +323,33 @@ interface DetailRowProps {
 
 function DetailRow({ label, value }: DetailRowProps) {
   return (
-    <View className="gap-1">
-      <Text className="text-muted-foreground text-sm font-medium">{label}</Text>
-      <Text className="text-foreground text-lg font-semibold">{value}</Text>
+    <View className="flex-row flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <Text className="text-muted-foreground text-sm">{label}</Text>
+      <Text className="text-foreground text-sm font-semibold">{value}</Text>
+    </View>
+  );
+}
+
+function ReviewNotice({
+  title,
+  description
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <View
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      className="bg-destructive/10 border-destructive/30 flex-row items-start gap-3 rounded-xl border p-4"
+    >
+      <Icon as={TriangleAlert} className="text-destructive mt-0.5 size-5" />
+      <View className="flex-1 gap-1">
+        <Text className="text-foreground text-base font-semibold">{title}</Text>
+        <Text className="text-muted-foreground text-sm leading-5">
+          {description}
+        </Text>
+      </View>
     </View>
   );
 }

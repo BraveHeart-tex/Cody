@@ -16,6 +16,7 @@ import {
 } from '@jest/globals';
 import { AppState, Linking, type AppStateStatus } from 'react-native';
 import { router } from 'expo-router';
+import type { BarcodeScanningResult } from 'expo-camera';
 
 let mockPermission: {
   canAskAgain: boolean;
@@ -49,6 +50,7 @@ jest.mock('expo-camera', () => {
   return {
     CameraView: (props: {
       onMountError: (event: { message: string }) => void;
+      onBarcodeScanned?: (result: BarcodeScanningResult) => void;
     }) => {
       React.useEffect(() => {
         mockCameraMountCount += 1;
@@ -56,6 +58,7 @@ jest.mock('expo-camera', () => {
 
       return React.createElement(NativeView, {
         onMountError: props.onMountError,
+        onBarcodeScanned: props.onBarcodeScanned,
         testID: 'camera-view'
       });
     },
@@ -66,6 +69,8 @@ jest.mock('expo-camera', () => {
     ]
   };
 });
+
+jest.mock('expo-crypto', () => ({ randomUUID: () => 'synthetic-scan-draft' }));
 
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(() => Promise.resolve()),
@@ -87,6 +92,7 @@ jest.mock('@/components/ui/text', () => {
   const { Text: NativeText } = require('react-native');
 
   return {
+    TextClassContext: React.createContext(undefined),
     Text: ({ children, ...props }: React.ComponentProps<typeof NativeText>) =>
       React.createElement(NativeText, props, children)
   };
@@ -189,6 +195,7 @@ describe('ScannerView permission and camera recovery', () => {
       });
     });
     expect(getByText('Camera unavailable')).toBeTruthy();
+    expect(getByText('Camera preview could not start.')).toBeTruthy();
 
     await fireEvent.press(getByText('Enter Setup Key Manually'));
     expect(router.push).toHaveBeenCalledWith('/add-account/manual');
@@ -197,5 +204,56 @@ describe('ScannerView permission and camera recovery', () => {
 
     expect(mockCameraMountCount).toBe(2);
     expect(getByText('Scan authenticator QR code')).toBeTruthy();
+  });
+  it('pauses invalid scans, ignores queued callbacks, and resumes only on Scan Again', async () => {
+    mockPermission = { canAskAgain: false, granted: true };
+    const { getByText, getByTestId } = await render(<ScannerView />);
+    const scan = getByTestId('camera-view').props.onBarcodeScanned;
+    const validScan = {
+      type: 'qr',
+      data: 'otpauth://totp/Demo:test@example.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
+    };
+
+    await act(async () => {
+      scan({ type: 'qr', data: 'https://example.com' });
+      scan(validScan);
+    });
+    expect(getByText('This is not an authenticator QR code')).toBeTruthy();
+    expect(getByTestId('camera-view').props.onBarcodeScanned).toBeUndefined();
+    expect(router.push).not.toHaveBeenCalled();
+
+    await fireEvent.press(getByText('Scan Again'));
+    await act(async () => {
+      const resumedScan = getByTestId('camera-view').props.onBarcodeScanned;
+
+      resumedScan(validScan);
+      resumedScan(validScan);
+    });
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/account-confirm',
+      params: { draftId: expect.any(String) }
+    });
+  });
+
+  it.each([
+    [
+      'otpauth://totp/Demo?secret=invalid!',
+      'Scan a valid authenticator QR code'
+    ],
+    [
+      'otpauth://hotp/Demo?secret=GEZDGNBVGY3TQOJQ',
+      'Unsupported authenticator setup'
+    ]
+  ])('shows friendly recovery for %s', async (data, title) => {
+    mockPermission = { canAskAgain: false, granted: true };
+    const { getByText, getByTestId } = await render(<ScannerView />);
+
+    await act(async () =>
+      getByTestId('camera-view').props.onBarcodeScanned({ type: 'qr', data })
+    );
+    expect(getByText(title)).toBeTruthy();
+    expect(getByText('Scan Again')).toBeTruthy();
+    expect(router.push).not.toHaveBeenCalled();
   });
 });
