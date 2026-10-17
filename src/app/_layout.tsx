@@ -12,7 +12,7 @@ import { ThemeProvider } from 'expo-router/react-navigation';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import { StatusBar, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 void SplashScreen.preventAutoHideAsync();
@@ -72,6 +72,9 @@ export default function RootLayout() {
       style={{ backgroundColor: theme.colors.background, flex: 1 }}
     >
       <ThemeProvider value={theme}>
+        <StatusBar
+          barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
+        />
         <AppLockGate>
           <Stack screenOptions={screenOptions}>
             <Stack.Screen name="index" options={{ headerShown: false }} />

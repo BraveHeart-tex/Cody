@@ -1,9 +1,7 @@
 import { useEffect } from 'react';
 import { AppState, BackHandler, Keyboard, View } from 'react-native';
 
-import { Button } from '@/components/ui/button';
-import { SecurityIllustration } from '@/components/ui/security-illustration';
-import { Text } from '@/components/ui/text';
+import { LockScreen } from '@/features/app-lock/components/lock-screen';
 import { useAppLockStore } from '@/features/app-lock/store/app-lock-store';
 import { cn } from '@/lib/utils/cn';
 
@@ -13,6 +11,7 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
   const retrySettings = useAppLockStore(state => state.retrySettings);
   const onAppStateChange = useAppLockStore(state => state.onAppStateChange);
   const authenticate = useAppLockStore(state => state.authenticate);
+  const failureKind = useAppLockStore(state => state.failureKind);
   const failureMessage = useAppLockStore(state => state.failureMessage);
   const isAuthenticating = useAppLockStore(state => state.isAuthenticating);
   const hasUnlocked = useAppLockStore(state => state.hasUnlocked);
@@ -66,55 +65,15 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
         </View>
       )}
       {covered && (
-        <View
-          className="bg-background absolute inset-0 z-50 items-center justify-center px-8"
-          accessibilityViewIsModal
-        >
-          <View className="mb-6">
-            <SecurityIllustration
-              variant={
-                status === 'load-error' ||
-                (status === 'locked' && !isAuthenticating && !!failureMessage)
-                  ? 'attention'
-                  : 'lock'
-              }
-            />
-          </View>
-          <Text className="w-full text-center text-xl font-semibold">
-            {status === 'initializing'
-              ? 'Loading security settings…'
-              : status === 'load-error'
-                ? 'Could not load security settings'
-                : 'Cody is locked'}
-          </Text>
-          {!!failureMessage && (
-            <Text className="text-muted-foreground mt-3 w-full text-center">
-              {failureMessage}
-            </Text>
-          )}
-          {status === 'load-error' ? (
-            <Button
-              className="mt-6"
-              variant="outline"
-              onPress={() => void retrySettings()}
-            >
-              <Text>Retry</Text>
-            </Button>
-          ) : status === 'locked' && appState === 'active' ? (
-            <Button
-              className="mt-6 h-auto min-h-11 w-full max-w-xs"
-              variant="outline"
-              disabled={isAuthenticating}
-              onPress={() => void authenticate(true)}
-            >
-              <Text className="flex-1 text-center">
-                {isAuthenticating
-                  ? 'Authenticating…'
-                  : 'Unlock with biometrics'}
-              </Text>
-            </Button>
-          ) : null}
-        </View>
+        <LockScreen
+          status={status}
+          active={appState === 'active'}
+          isAuthenticating={isAuthenticating}
+          failureKind={failureKind}
+          failureMessage={failureMessage}
+          onRetry={() => void retrySettings()}
+          onUnlock={() => void authenticate(true)}
+        />
       )}
     </View>
   );

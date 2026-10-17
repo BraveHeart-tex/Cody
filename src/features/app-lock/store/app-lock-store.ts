@@ -1,11 +1,16 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { create } from 'zustand';
 
+import {
+  getAuthenticationFeedback,
+  type AuthenticationFailure
+} from '@/features/app-lock/model/authentication-feedback';
 import { authenticateBiometrics } from '@/features/settings/model/biometrics';
 import { useSettingsStore } from '@/features/settings/store/settings-store';
 
 type ProtectionChangeResult =
-  { success: true } | { success: false; message: string };
+  | { success: true }
+  | { success: false; message: string; kind?: AuthenticationFailure };
 
 type LockStatus = 'initializing' | 'load-error' | 'unlocked' | 'locked';
 
@@ -14,6 +19,7 @@ type AppLockState = {
   appState: AppStateStatus | 'unknown';
   lastBackgroundAt: number | null;
   failureMessage: string | null;
+  failureKind: AuthenticationFailure | null;
   isAuthenticating: boolean;
   hasUnlocked: boolean;
   canResume: boolean;
@@ -32,13 +38,14 @@ export const useAppLockStore = create<AppLockState>((set, get) => ({
   status: 'initializing',
   appState: AppState.currentState ?? 'unknown',
   lastBackgroundAt: null,
+  failureKind: null,
   failureMessage: null,
   isAuthenticating: false,
   hasUnlocked: false,
   canResume: false,
 
   retrySettings: async () => {
-    set({ status: 'initializing', failureMessage: null });
+    set({ status: 'initializing', failureKind: null, failureMessage: null });
 
     try {
       await useSettingsStore.getState().loadSettings();
@@ -112,7 +119,7 @@ export const useAppLockStore = create<AppLockState>((set, get) => ({
       ) {
         set({ status: 'unlocked', canResume: false });
       } else {
-        set({ status: 'locked', failureMessage: null });
+        set({ status: 'locked', failureKind: null, failureMessage: null });
         autoAttempted = false;
       }
     }
@@ -133,7 +140,7 @@ export const useAppLockStore = create<AppLockState>((set, get) => ({
 
     autoAttempted = true;
     operationInFlight = true;
-    set({ isAuthenticating: true, failureMessage: null });
+    set({ isAuthenticating: true, failureKind: null, failureMessage: null });
     const requestGeneration = generation;
 
     try {
@@ -144,12 +151,19 @@ export const useAppLockStore = create<AppLockState>((set, get) => ({
       }
 
       if (result.success) {
-        set({ status: 'unlocked', hasUnlocked: true, failureMessage: null });
+        set({
+          status: 'unlocked',
+          hasUnlocked: true,
+          failureKind: null,
+          failureMessage: null
+        });
 
         return true;
       }
 
-      set({ failureMessage: getAuthenticationMessage(result) });
+      const feedback = getAuthenticationFeedback(result);
+
+      set({ failureKind: feedback.kind, failureMessage: feedback.message });
 
       return false;
     } finally {
@@ -176,14 +190,14 @@ export const useAppLockStore = create<AppLockState>((set, get) => ({
     const requestGeneration = generation;
 
     try {
-      const result = await authenticateBiometrics();
+      const result = await authenticateBiometrics('change-protection');
 
       if (requestGeneration !== generation) {
         return { success: false, message: 'Authentication was interrupted.' };
       }
 
       if (!result.success) {
-        return { success: false, message: getAuthenticationMessage(result) };
+        return { success: false, ...getAuthenticationFeedback(result) };
       }
 
       await useSettingsStore.getState().setRequireBiometrics(enabled);
@@ -210,6 +224,7 @@ export const useAppLockStore = create<AppLockState>((set, get) => ({
         status: 'unlocked',
         hasUnlocked: true,
         canResume: false,
+        failureKind: null,
         failureMessage: null
       });
 
@@ -230,37 +245,10 @@ export function resetAppLockStoreForTest(): void {
     status: 'initializing',
     appState: 'unknown',
     lastBackgroundAt: null,
+    failureKind: null,
     failureMessage: null,
     isAuthenticating: false,
     hasUnlocked: false,
     canResume: false
   });
-}
-
-function getAuthenticationMessage(
-  result: Awaited<ReturnType<typeof authenticateBiometrics>>
-): string {
-  if (result.success) {
-    return '';
-  }
-
-  const warning = 'warning' in result ? result.warning : undefined;
-
-  if (warning) {
-    return warning;
-  }
-
-  if (result.error === 'not_enrolled') {
-    return 'Set up biometrics in device settings, then try again.';
-  }
-
-  if (result.error === 'not_available') {
-    return 'Strong biometrics are unavailable. Set up a strong biometric method in device settings.';
-  }
-
-  if (result.error === 'lockout') {
-    return 'Biometrics are temporarily locked. Wait a moment, then try again.';
-  }
-
-  return 'Biometric authentication was not completed. Try again.';
 }

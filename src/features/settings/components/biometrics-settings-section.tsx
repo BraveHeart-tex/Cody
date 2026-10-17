@@ -1,28 +1,32 @@
-import { View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 
 interface BiometricsSettingsSectionProps {
   disabled: boolean;
+  pending?: boolean;
   onCheckedChange: (isEnabled: boolean) => void | Promise<void>;
   requireBiometrics: boolean;
 }
 
 export function BiometricsSettingsSection({
   disabled,
+  pending = false,
   onCheckedChange,
   requireBiometrics
 }: BiometricsSettingsSectionProps) {
   return (
-    <View className="border-border bg-card rounded-lg border p-4">
+    <View className="border-border/60 bg-card gap-3 rounded-xl border p-5">
       <View className="flex-row items-center justify-between gap-4">
         <View className="flex-1 gap-1">
-          <Text className="text-card-foreground text-base font-semibold">
+          <Text className="text-card-foreground text-base font-bold">
             Require biometrics
           </Text>
           <Text className="text-muted-foreground text-sm leading-5">
-            Protect Cody with Face ID, Touch ID, or fingerprint unlock.
+            {Platform.OS === 'ios'
+              ? 'Protect Cody with Face ID or Touch ID.'
+              : 'Protect Cody with strong biometric authentication.'}
           </Text>
         </View>
         <Switch
@@ -32,6 +36,17 @@ export function BiometricsSettingsSection({
           onCheckedChange={onCheckedChange}
         />
       </View>
+      {pending && (
+        <View className="flex-row items-center gap-2">
+          <ActivityIndicator className="text-primary" />
+          <Text
+            accessibilityLiveRegion="polite"
+            className="text-muted-foreground flex-1 text-sm leading-5"
+          >
+            Confirming security change…
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

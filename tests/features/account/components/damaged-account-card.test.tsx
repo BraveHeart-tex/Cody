@@ -41,6 +41,7 @@ jest.mock('@/components/ui/text', () => {
   const { Text } = require('react-native');
 
   return {
+    TextClassContext: React.createContext(''),
     Text: ({ children, ...props }: React.ComponentProps<typeof Text>) =>
       React.createElement(Text, props, children)
   };

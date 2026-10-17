@@ -8,6 +8,15 @@ export type BiometricsSupportStatus =
       reason: 'no-hardware' | 'not-enrolled' | 'weak-biometric';
     };
 
+export type BiometricAuthenticationResult =
+  | { success: true }
+  | (Extract<
+      LocalAuthentication.LocalAuthenticationResult,
+      { success: false }
+    > & {
+      supportReason?: 'weak-biometric';
+    });
+
 let authenticationInFlight = false;
 
 export async function getBiometricsSupportStatus(): Promise<BiometricsSupportStatus> {
@@ -46,7 +55,9 @@ export async function getBiometricsSupportStatus(): Promise<BiometricsSupportSta
   return { isSupported: true };
 }
 
-export async function authenticateBiometrics(): Promise<LocalAuthentication.LocalAuthenticationResult> {
+export async function authenticateBiometrics(
+  intent: 'unlock' | 'change-protection' = 'unlock'
+): Promise<BiometricAuthenticationResult> {
   if (authenticationInFlight) {
     return { success: false, error: 'app_cancel' };
   }
@@ -69,6 +80,7 @@ export async function authenticateBiometrics(): Promise<LocalAuthentication.Loca
           support.reason === 'not-enrolled' ? 'not_enrolled' : 'not_available',
         ...(support.reason === 'weak-biometric'
           ? {
+              supportReason: 'weak-biometric' as const,
               warning:
                 'Set up a strong biometric method, such as fingerprint unlock, in device settings.'
             }
@@ -84,7 +96,10 @@ export async function authenticateBiometrics(): Promise<LocalAuthentication.Loca
       biometricsSecurityLevel: 'strong',
       disableDeviceFallback: true,
       fallbackLabel: '',
-      promptMessage: 'Authenticate to unlock Cody'
+      promptMessage:
+        intent === 'change-protection'
+          ? 'Confirm security change'
+          : 'Authenticate to unlock Cody'
     });
 
     return backgrounded && result.success

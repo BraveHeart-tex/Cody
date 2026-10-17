@@ -149,6 +149,63 @@ describe('app lock controller', () => {
     expect(auth).toHaveBeenCalledTimes(1);
   });
 
+  it.each<
+    [
+      Exclude<
+        Awaited<ReturnType<typeof authenticateBiometrics>>,
+        { success: true }
+      >['error'],
+      'weak-biometric' | undefined,
+      string
+    ]
+  >([
+    ['user_cancel', undefined, 'cancelled'],
+    ['system_cancel', undefined, 'cancelled'],
+    ['app_cancel', undefined, 'cancelled'],
+    ['not_enrolled', undefined, 'not-enrolled'],
+    ['not_available', undefined, 'unavailable'],
+    ['not_available', 'weak-biometric', 'weak-biometric'],
+    ['lockout', undefined, 'lockout'],
+    ['authentication_failed', undefined, 'failed']
+  ])(
+    'keeps %s / %s locked without automatically retrying',
+    async (error, supportReason, kind) => {
+      useAppLockStore.getState().onAppStateChange('active');
+      await initialize();
+      auth.mockResolvedValue({
+        success: false,
+        error,
+        ...(supportReason ? { supportReason } : {})
+      });
+      expect(await useAppLockStore.getState().authenticate()).toBe(false);
+      expect(useAppLockStore.getState()).toMatchObject({
+        status: 'locked',
+        hasUnlocked: false,
+        failureKind: kind
+      });
+      await useAppLockStore.getState().authenticate();
+      expect(auth).toHaveBeenCalledTimes(1);
+      auth.mockResolvedValue({ success: true });
+      expect(await useAppLockStore.getState().authenticate(true)).toBe(true);
+      expect(useAppLockStore.getState()).toMatchObject({
+        status: 'unlocked',
+        failureKind: null
+      });
+    }
+  );
+
+  it('returns neutral cancellation for settings without writing protection', async () => {
+    useAppLockStore.getState().onAppStateChange('active');
+    await initialize({ ...config, requireBiometrics: false });
+    auth.mockResolvedValue({ success: false, error: 'user_cancel' });
+    expect(
+      await useAppLockStore.getState().changeProtection(true)
+    ).toMatchObject({ success: false, kind: 'cancelled' });
+    expect(auth).toHaveBeenCalledWith('change-protection');
+    expect(write).not.toHaveBeenCalled();
+    expect(useSettingsStore.getState().settings.requireBiometrics).toBe(false);
+  });
+
   it('locks after enabling if background overlaps the settings write', async () => {
     useAppLockStore.getState().onAppStateChange('active');
     await initialize({ ...config, requireBiometrics: false });

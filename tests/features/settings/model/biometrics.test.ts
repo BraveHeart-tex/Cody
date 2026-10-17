@@ -118,6 +118,18 @@ describe('biometrics', () => {
     expect(removeListener).toHaveBeenCalledTimes(1);
   });
 
+  it('uses a distinct OS prompt for protection changes with fallback disabled', async () => {
+    await authenticateBiometrics('change-protection');
+    expect(auth.authenticateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptMessage: 'Confirm security change',
+        disableDeviceFallback: true,
+        fallbackLabel: '',
+        biometricsSecurityLevel: 'strong'
+      })
+    );
+  });
+
   it('maps unsupported hardware and enrollment to native errors', async () => {
     auth.hasHardwareAsync.mockResolvedValue(false);
     await expect(authenticateBiometrics()).resolves.toEqual({
@@ -145,6 +157,7 @@ describe('biometrics', () => {
     await expect(authenticateBiometrics()).resolves.toEqual({
       success: false,
       error: 'not_available',
+      supportReason: 'weak-biometric',
       warning:
         'Set up a strong biometric method, such as fingerprint unlock, in device settings.'
     });

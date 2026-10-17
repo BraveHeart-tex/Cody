@@ -29,6 +29,7 @@ jest.mock('@/components/ui/text', () => {
   const { Text } = require('react-native');
 
   return {
+    TextClassContext: React.createContext(''),
     Text: ({ children, ...props }: React.ComponentProps<typeof Text>) =>
       React.createElement(Text, props, children)
   };
@@ -50,6 +51,7 @@ jest.mock('@/features/settings/storage/settings-storage', () => ({
   setSettings: async () => undefined
 }));
 
+import type { AuthenticationFailure } from '@/features/app-lock/model/authentication-feedback';
 import { AppLockGate } from '@/features/app-lock/components/app-lock-gate';
 import {
   resetAppLockStoreForTest,
@@ -156,6 +158,51 @@ describe('AppLockGate', () => {
     }
   );
 
+  it.each<[AuthenticationFailure, string, 'lock' | 'attention']>([
+    ['cancelled', 'Cody is locked', 'lock'],
+    ['not-enrolled', 'Set up biometrics first', 'attention'],
+    ['weak-biometric', 'Strong biometrics required', 'attention'],
+    ['unavailable', 'Biometrics unavailable', 'attention'],
+    ['lockout', 'Biometrics temporarily locked', 'attention']
+  ])(
+    'presents %s recovery while protecting accounts',
+    async (failureKind, title, variant) => {
+      useAppLockStore.setState({
+        status: 'locked',
+        appState: 'active',
+        hasUnlocked: false,
+        failureKind,
+        failureMessage:
+          failureKind === 'cancelled'
+            ? 'Authentication cancelled.'
+            : 'Recovery guidance',
+        retrySettings: async () => undefined,
+        onAppStateChange: () => undefined,
+        authenticate: async () => false
+      });
+      const screen = await render(
+        <AppLockGate>
+          <DraftScreen />
+        </AppLockGate>
+      );
+
+      expect(screen.getByText(title)).toBeTruthy();
+      expect(screen.queryByTestId('protected-screen')).toBeNull();
+      expect(
+        screen.getByTestId(`security-illustration-${variant}`, {
+          includeHiddenElements: true
+        })
+      ).toBeTruthy();
+
+      if (failureKind === 'not-enrolled' || failureKind === 'weak-biometric') {
+        await fireEvent.press(screen.getByText('See device settings steps'));
+        expect(screen.getByText(/In device Settings/)).toBeTruthy();
+      } else {
+        expect(screen.queryByText('See device settings steps')).toBeNull();
+      }
+    }
+  );
+
   it('keeps cold-start protected content unmounted until automatic authentication succeeds', async () => {
     mockGetSettings = async () => ({
       requireBiometrics: true,
@@ -222,7 +269,7 @@ describe('AppLockGate', () => {
     expect(screen.getByText('Could not load security settings')).toBeTruthy();
     expect(screen.queryByTestId('protected-screen')).toBeNull();
 
-    await fireEvent.press(screen.getByText('Retry'));
+    await fireEvent.press(screen.getByText('Retry loading'));
     expect(screen.queryByTestId('protected-screen')).toBeNull();
     await act(async () => {
       finishRetry({

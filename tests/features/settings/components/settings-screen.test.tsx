@@ -18,7 +18,10 @@ const mockChangeProtection =
   jest.fn<
     (
       enabled: boolean
-    ) => Promise<{ success: true } | { success: false; message: string }>
+    ) => Promise<
+      | { success: true }
+      | { success: false; message: string; kind?: 'cancelled' }
+    >
   >();
 const mockSetLockTimeoutSeconds =
   jest.fn<SettingsStoreState['setLockTimeoutSeconds']>();
@@ -128,6 +131,7 @@ jest.mock('@/components/ui/text', () => {
   const { Text } = require('react-native');
 
   return {
+    TextClassContext: React.createContext(''),
     Text: ({ children, ...props }: React.ComponentProps<typeof Text>) =>
       React.createElement(Text, props, children)
   };
@@ -225,6 +229,42 @@ describe('SettingsScreen', () => {
     expect(await findByText('Authentication was canceled.')).toBeTruthy();
   });
 
+  it('treats cancellation neutrally without changing the switch', async () => {
+    mockChangeProtection.mockResolvedValueOnce({
+      success: false,
+      kind: 'cancelled',
+      message: 'Authentication cancelled.'
+    });
+    const screen = await render(<SettingsScreen />);
+
+    await fireEvent.press(screen.getByLabelText('Require biometrics'));
+    expect(
+      screen.getByText('Authentication cancelled. No settings were changed.')
+    ).toBeTruthy();
+    expect(
+      screen.getByLabelText('Require biometrics').props.accessibilityState
+        .checked
+    ).toBe(false);
+  });
+
+  it('keeps the selected timeout and permits retry after a failed write', async () => {
+    mockSettings.requireBiometrics = true;
+    mockSetLockTimeoutSeconds.mockRejectedValueOnce(new Error('disk full'));
+    const screen = await render(<SettingsScreen />);
+
+    await fireEvent.press(screen.getByText('5 min'));
+    expect(
+      screen.getByText(
+        'Couldn’t save your lock timeout. Your previous setting is unchanged.'
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText('1 min').parent?.props.accessibilityState.selected
+    ).toBe(true);
+    await fireEvent.press(screen.getByText('5 min'));
+    expect(mockSetLockTimeoutSeconds).toHaveBeenCalledTimes(2);
+  });
+
   it('authenticates before disabling protection too', async () => {
     mockSettings = {
       lockTimeoutSeconds: 60,
@@ -298,10 +338,12 @@ describe('SettingsScreen', () => {
     mockSaveError = new Error('disk unavailable');
     const { getByText } = await render(<SettingsScreen />);
 
-    expect(getByText('Settings storage is unavailable.')).toBeTruthy();
+    expect(
+      getByText('Settings storage is unavailable. Try your change again.')
+    ).toBeTruthy();
   });
 
-  it('shows storage failure and restores controls when protection persistence rejects', async () => {
+  it('shows an inline save failure and keeps security controls available for retry', async () => {
     mockSaveError = null;
     mockChangeProtection.mockImplementationOnce(async () => {
       mockSaveError = new Error('disk unavailable');
@@ -318,10 +360,14 @@ describe('SettingsScreen', () => {
     expect(mockChangeProtection).toHaveBeenCalledWith(true);
     await rerender(<SettingsScreen />);
 
-    expect(getByText('Settings storage is unavailable.')).toBeTruthy();
+    expect(
+      getByText(
+        'Couldn’t save biometric protection. Your previous setting is unchanged.'
+      )
+    ).toBeTruthy();
     expect(
       getByLabelText('Require biometrics').props.accessibilityState.disabled
-    ).toBe(true);
+    ).toBe(false);
     expect(mockChangeProtection).toHaveBeenCalledTimes(1);
 
     mockSaveError = null;

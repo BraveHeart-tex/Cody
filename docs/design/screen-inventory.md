@@ -101,23 +101,24 @@ Paths: [route](/Users/bora/projects/cody/src/app/move-accounts.tsx), [screen](/U
 
 Paths: [route](/Users/bora/projects/cody/src/app/settings.tsx), [screen](/Users/bora/projects/cody/src/features/settings/components/settings-screen.tsx), [biometrics section](/Users/bora/projects/cody/src/features/settings/components/biometrics-settings-section.tsx), [timeout section](/Users/bora/projects/cody/src/features/settings/components/lock-timeout-settings-section.tsx), [theme section](/Users/bora/projects/cody/src/features/settings/components/theme-settings-section.tsx).
 
-- [x] **Load and preferences** - biometric requirement, lock timeout (0/1/5/15 minutes), theme (system/light/dark) (`settings-screen.tsx:16-40`; sections above). Biometric/timeout controls disable during load; theme remains enabled.
-- [x] **Security change confirmation** - enabling/disabling protection requires successful biometric authentication; pending controls disable and failures appear (`settings-screen.tsx:42-59`; `biometrics.ts:13-47`).
-- [x] **Unavailable/failure** - hardware, enrollment, Android strong-biometric and lockout messages are mapped (`app-lock-store.ts:240-265`; `biometrics.ts:13-47`).
-- [x] **Persistence failure** - settings load/save error is surfaced; theme applies immediately even when persistence fails (`settings-screen.tsx:29-33,114`; `settings-store.ts:49-83,122-149,165-194`).
-- [ ] **Recovery/success** - no retry affordance within settings on read/save error and no save-success confirmation. Gate has a separate load retry.
-- [ ] **Platform** - native prompt is OS-owned. Face ID/Touch ID/fingerprint wording and Android strong-biometric restriction need device review; no screenshot evidence.
+- [x] **Load and preferences** - biometric requirement, lock timeout (0/1/5/15 minutes), theme (system/light/dark). Security controls disable during load or a pending security mutation.
+- [x] **Security change confirmation** - enabling/disabling protection uses the OS-owned “Confirm security change” prompt. Cancellation is neutral and leaves the setting unchanged.
+- [x] **Recovery** - typed hardware, enrollment, weak Android biometric, lockout, cancellation, and failure feedback. Enrollment help includes device settings instructions, a supported OS settings action, and availability recheck on return.
+- [x] **Persistence failure** - biometric and timeout save failures keep the prior value and show inline feedback. Controls remain available for retry. Theme retains its existing immediate session behavior.
+- [x] **Android** - dark settings layout, selected timeout, native confirmation prompt and cancellation exercised on emulator with no accounts. iOS device verification skipped at user request.
 
 ### App lock gate - P0
 
-Paths: mounted around all routes in [root layout](/Users/bora/projects/cody/src/app/_layout.tsx), [gate](/Users/bora/projects/cody/src/features/app-lock/components/app-lock-gate.tsx), [lock state machine](/Users/bora/projects/cody/src/features/app-lock/store/app-lock-store.ts).
+Paths: [root layout](/Users/bora/projects/cody/src/app/_layout.tsx), [gate](/Users/bora/projects/cody/src/features/app-lock/components/app-lock-gate.tsx), [lock screen](/Users/bora/projects/cody/src/features/app-lock/components/lock-screen.tsx), [controller](/Users/bora/projects/cody/src/features/app-lock/store/app-lock-store.ts).
 
-- [x] **Initializing/locked** - protected content stays unmounted until settings load and authentication succeeds (`app-lock-gate.tsx:32-38,54-77`).
-- [x] **Load failure** - fail-closed state with Retry (`:84-90`).
-- [x] **Authentication** - auto-attempt/manual unlock, disabled progress state and failure message (`:79-104`). Store handles background/resume, configured timeout and interrupted authentication (`app-lock-store.ts:57-159`).
-- [x] **Input/accessibility boundary** - protects pointer and accessibility content and blocks Android hardware Back while locked (`app-lock-gate.tsx:40-71`). Tests exercise root boundary and auth paths (`tests/features/app-lock/components/root-lock-boundary.test.tsx`; `app-lock-gate.test.tsx`).
-- [ ] **Recovery** - device-passcode fallback is disabled (`biometrics.ts:83-88`); unavailable/not-enrolled guidance asks user to configure biometrics in device settings, with no in-app route. Design should handle the recovery state without weakening the security boundary.
-- [ ] **Platform** - native biometric prompt and screen-reader behavior require Android/iOS device verification.
+- [x] **Initialization** - protected content remains unmounted until the security policy permits access. After first unlock, preserve navigation and form state under the privacy cover.
+- [x] **Load failure** - fail-closed attention state, persistent explanation, retry loading.
+- [x] **Authentication** - automatic attempt once per entry/resume; manual retry after failure/cancellation; disabled progress CTA; immediate entry after success.
+- [x] **Input/accessibility boundary** - opaque cover, hidden protected subtree, blocked pointer input/Android Back, keyboard dismissal, and background interruption handling remain tested.
+- [x] **Recovery** - separate enrollment, unavailable hardware, weak biometric, OS lockout, failure, and neutral cancellation states; device-passcode fallback remains disabled.
+- [x] **Android** - native unlock prompt, cancellation, manual retry, and successful unlock exercised. Screen-reader speech remains unverified; iOS device verification skipped at user request.
+
+See [COD-5 design and verification checklist](app-lock-security.md) for the full state matrix and validation limits.
 
 ### Native and component overlays - P1/P2
 
