@@ -2,15 +2,20 @@ import { create, type StoreApi } from 'zustand';
 
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import {
+  applyAccountWriteJournal,
   archiveCorruptAccountIndex,
+  clearAccountWriteJournal,
   CorruptAccountIndexError,
-  deleteAccountRecord,
-  deleteSecret,
+  deleteAccountData,
+  getAccountWriteJournal,
   getAccountFromStores,
   getAllAccounts,
+  getStagedAccountSecret,
+  recoverAccountWriteJournal,
+  saveAccountWriteJournal,
   setAccountIndex,
-  setAccountRecord,
-  setSecret,
+  setStagedAccountSecret,
+  type AccountWriteJournal,
   type AccountsStorageSnapshot,
   type DamagedAccount
 } from '@/features/totp/storage/totp-storage';
@@ -67,22 +72,31 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
 
     set({ isLoading: true, loadStatus: 'loading' });
 
-    loadPromise = getAllAccounts()
-      .then(snapshot => {
-        commitSnapshot(set, snapshot);
-      })
-      .catch(cause => {
-        const loadError = toError(cause);
+    loadPromise = (async () => {
+      let recoveryFailed = false;
 
-        loadPromise = null;
-        set({
-          error: loadError,
-          isLoading: false,
-          loadStatus: 'failed'
-        });
+      try {
+        await recoverAccountWriteJournal();
+      } catch {
+        recoveryFailed = true;
+      }
 
-        throw loadError;
+      const snapshot = await getAllAccounts();
+      const journal = recoveryFailed ? await getAccountWriteJournal() : null;
+
+      commitSnapshot(set, snapshot, journal);
+    })().catch(cause => {
+      const loadError = toError(cause);
+
+      loadPromise = null;
+      set({
+        error: loadError,
+        isLoading: false,
+        loadStatus: 'failed'
       });
+
+      throw loadError;
+    });
 
     return loadPromise;
   },
@@ -99,6 +113,9 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
 
   retryAccount: async id => {
     await runMutation(async () => {
+      await recoverAccountWriteJournal();
+      await refreshStoreSnapshot(set);
+
       if (!get().accountIds.includes(id)) {
         return;
       }
@@ -128,17 +145,40 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
   removeDamagedAccount: async id => {
     await runMutation(async () => {
       try {
-        const { accountIds, damagedAccounts } = get();
+        let { accountIds, damagedAccounts } = get();
 
         if (!damagedAccounts.some(account => account.id === id)) {
           return;
         }
 
+        const journal = await getAccountWriteJournal();
+
+        if (journal != null && journal.affectedIds.includes(id)) {
+          const currentRecord = damagedAccounts.find(
+            account => account.id === id
+          )?.record;
+          const removeJournal: AccountWriteJournal = {
+            kind: 'remove',
+            accountIds: accountIds.filter(accountId => accountId !== id),
+            affectedIds: [id],
+            records: currentRecord == null ? [] : [currentRecord],
+            secretAccountId: journal.secretAccountId,
+            removeAccountId: id
+          };
+
+          await saveAccountWriteJournal(removeJournal);
+          await applyAccountWriteJournal(removeJournal);
+          await refreshStoreSnapshot(set);
+
+          return;
+        }
+
+        await ensureNoPendingWrite(set);
+        ({ accountIds, damagedAccounts } = get());
+
         const nextIds = accountIds.filter(accountId => accountId !== id);
 
-        // Remove the pair before updating the index so an interrupted cleanup
-        // stays visible as a damaged entry instead of silently disappearing.
-        await Promise.all([deleteAccountRecord(id), deleteSecret(id)]);
+        await deleteAccountData(id);
         await setAccountIndex(nextIds);
 
         set({
@@ -148,17 +188,16 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           loadStatus: 'loaded'
         });
       } catch (cause) {
-        const mutationError = toError(cause);
+        await refreshStoreSnapshot(set).catch(() => undefined);
 
-        set({ error: mutationError });
-
-        throw mutationError;
+        throw toError(cause);
       }
     });
   },
 
   startReaddingAccounts: async () => {
     await runMutation(async () => {
+      await ensureNoPendingWrite(set, false);
       const error = get().error;
 
       if (!(error instanceof CorruptAccountIndexError)) {
@@ -182,6 +221,10 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
   addAccount: async account => {
     await runMutation(async () => {
       await persistMutation(get, set, currentAccounts => {
+        if (currentAccounts.some(({ id }) => id === account.id)) {
+          return currentAccounts;
+        }
+
         const nextSortOrder =
           currentAccounts.length === 0
             ? 0
@@ -206,6 +249,7 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
   deleteAccount: async id => {
     await runMutation(async () => {
       try {
+        await ensureNoPendingWrite(set);
         await get().loadAccounts();
         const { accountIds, accounts, damagedAccounts } = get();
         const nextAccounts = accounts.filter(account => account.id !== id);
@@ -215,15 +259,13 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           nextAccounts.map(account => account.id)
         );
 
+        await deleteAccountData(id);
         await setAccountIndex(nextIds);
-        await Promise.all([deleteAccountRecord(id), deleteSecret(id)]);
         commitHealthyMutation(set, nextIds, nextAccounts, damagedAccounts);
       } catch (cause) {
-        const mutationError = toError(cause);
+        await refreshStoreSnapshot(set).catch(() => undefined);
 
-        set({ error: mutationError });
-
-        throw mutationError;
+        throw toError(cause);
       }
     });
   },
@@ -231,6 +273,7 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
   reorderAccounts: async ids => {
     await runMutation(async () => {
       try {
+        await ensureNoPendingWrite(set);
         await get().loadAccounts();
         const { accounts, accountIds, damagedAccounts } = get();
         const accountById = new Map(
@@ -260,15 +303,28 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           }))
         );
 
-        await persistAccountOrder(nextAccounts, accounts);
-        await setAccountIndex(nextIds);
+        const changedRecords = getChangedRecords(nextAccounts, accounts);
+
+        if (changedRecords.length === 0 && arraysEqual(nextIds, accountIds)) {
+          return;
+        }
+
+        const journal = createWriteJournal(
+          nextIds,
+          changedRecords,
+          changedRecords.length > 0
+            ? changedRecords.map(({ id }) => id)
+            : nextIds,
+          null
+        );
+
+        await saveAccountWriteJournal(journal);
+        await applyAccountWriteJournal(journal);
         commitHealthyMutation(set, nextIds, nextAccounts, damagedAccounts);
       } catch (cause) {
-        const mutationError = toError(cause);
+        await refreshStoreSnapshot(set).catch(() => undefined);
 
-        set({ error: mutationError });
-
-        throw mutationError;
+        throw toError(cause);
       }
     });
   }
@@ -295,6 +351,7 @@ async function persistMutation(
 ): Promise<void> {
   try {
     await get().loadAccounts();
+    await ensureNoPendingWrite(set);
 
     const current = get();
     const orderedAccounts = sortAccounts(getNextAccounts(current.accounts));
@@ -304,29 +361,84 @@ async function persistMutation(
       orderedAccounts.map(account => account.id)
     );
     const nextAccounts = orderedAccounts;
+    const changedAccounts = getChangedAccounts(nextAccounts, current.accounts);
 
-    await persistAccounts(nextAccounts);
-    await setAccountIndex(nextIds);
+    if (
+      changedAccounts.length === 0 &&
+      arraysEqual(nextIds, current.accountIds)
+    ) {
+      return;
+    }
+
+    const changedRecords = changedAccounts.map(toAccountRecord);
+    const changedSecrets = changedAccounts.filter(account => {
+      const previousAccount = current.accounts.find(
+        currentAccount => currentAccount.id === account.id
+      );
+
+      return (
+        previousAccount == null || previousAccount.secret !== account.secret
+      );
+    });
+
+    if (changedSecrets.length > 1) {
+      throw new Error('A single account write can only stage one secret.');
+    }
+
+    const secretAccount = changedSecrets[0];
+    const journal = createWriteJournal(
+      nextIds,
+      changedRecords,
+      changedAccounts.map(({ id }) => id),
+      secretAccount?.id ?? null
+    );
+
+    await saveAccountWriteJournal(journal);
+
+    if (secretAccount != null) {
+      try {
+        await setStagedAccountSecret(secretAccount.secret);
+      } catch (cause) {
+        try {
+          const stagedSecret = await getStagedAccountSecret();
+
+          if (stagedSecret == null) {
+            await clearAccountWriteJournal();
+
+            throw cause;
+          }
+        } catch (readCause) {
+          if (readCause === cause) {
+            throw cause;
+          }
+
+          throw readCause;
+        }
+      }
+    }
+
+    await applyAccountWriteJournal(journal);
     commitHealthyMutation(set, nextIds, nextAccounts, current.damagedAccounts);
   } catch (cause) {
-    const mutationError = toError(cause);
+    await refreshStoreSnapshot(set).catch(() => undefined);
 
-    set({ error: mutationError });
-
-    throw mutationError;
+    throw toError(cause);
   }
 }
 
 function commitSnapshot(
   set: AccountsStoreSet,
-  snapshot: AccountsStorageSnapshot
+  snapshot: AccountsStorageSnapshot,
+  journal: AccountWriteJournal | null = null
 ): void {
+  const withPendingWrite = addPendingWrite(snapshot, journal);
+
   set({
-    accountIds: snapshot.accountIds,
-    accounts: sortAccounts(snapshot.accounts),
+    accountIds: withPendingWrite.accountIds,
+    accounts: sortAccounts(withPendingWrite.accounts),
     damagedAccounts: orderDamagedAccounts(
-      snapshot.accountIds,
-      snapshot.damagedAccounts
+      withPendingWrite.accountIds,
+      withPendingWrite.damagedAccounts
     ),
     error: null,
     isLoading: false,
@@ -387,33 +499,142 @@ function orderDamagedAccounts(
   });
 }
 
-async function persistAccounts(accounts: OtpAccount[]): Promise<void> {
-  await Promise.all(
-    accounts.map(async ({ secret, ...record }) => {
-      await Promise.all([
-        setAccountRecord(record),
-        setSecret(record.id, secret)
-      ]);
-    })
+function createWriteJournal(
+  accountIds: string[],
+  records: ReturnType<typeof toAccountRecord>[],
+  affectedIds: string[],
+  secretAccountId: string | null
+): AccountWriteJournal {
+  return {
+    kind: 'write',
+    accountIds,
+    affectedIds,
+    records,
+    secretAccountId,
+    removeAccountId: null
+  };
+}
+
+function getChangedAccounts(
+  nextAccounts: OtpAccount[],
+  previousAccounts: OtpAccount[]
+): OtpAccount[] {
+  const previousById = new Map(
+    previousAccounts.map(account => [account.id, account])
+  );
+
+  return nextAccounts.filter(account => {
+    const previous = previousById.get(account.id);
+
+    return (
+      previous == null ||
+      JSON.stringify(toAccountRecord(previous)) !==
+        JSON.stringify(toAccountRecord(account)) ||
+      previous.secret !== account.secret
+    );
+  });
+}
+
+function getChangedRecords(
+  nextAccounts: OtpAccount[],
+  previousAccounts: OtpAccount[]
+): ReturnType<typeof toAccountRecord>[] {
+  return getChangedAccounts(nextAccounts, previousAccounts).map(
+    toAccountRecord
   );
 }
 
-async function persistAccountOrder(
-  nextAccounts: OtpAccount[],
-  previousAccounts: OtpAccount[]
-): Promise<void> {
-  const previousSortOrderById = new Map(
-    previousAccounts.map(account => [account.id, account.sortOrder])
-  );
-  const changedAccounts = nextAccounts.filter(
-    account => previousSortOrderById.get(account.id) !== account.sortOrder
-  );
+function toAccountRecord(account: OtpAccount) {
+  const { secret: _secret, ...record } = account;
 
-  await Promise.all(
-    changedAccounts.map(async ({ secret: _secret, ...record }) => {
-      await setAccountRecord(record);
-    })
+  return record;
+}
+
+function arraysEqual(first: string[], second: string[]): boolean {
+  return (
+    first.length === second.length &&
+    first.every((value, index) => value === second[index])
   );
+}
+
+async function ensureNoPendingWrite(
+  set: AccountsStoreSet,
+  refreshAfterRecovery = true
+): Promise<void> {
+  const journal = await getAccountWriteJournal();
+
+  if (journal == null) {
+    return;
+  }
+
+  try {
+    await recoverAccountWriteJournal();
+  } catch (cause) {
+    await refreshStoreSnapshot(set).catch(() => undefined);
+
+    throw toError(cause);
+  }
+
+  if (refreshAfterRecovery) {
+    await refreshStoreSnapshot(set);
+  }
+}
+
+async function refreshStoreSnapshot(set: AccountsStoreSet): Promise<void> {
+  const [snapshot, journal] = await Promise.all([
+    getAllAccounts(),
+    getAccountWriteJournal()
+  ]);
+
+  commitSnapshot(set, snapshot, journal);
+}
+
+function addPendingWrite(
+  snapshot: AccountsStorageSnapshot,
+  journal: AccountWriteJournal | null
+): AccountsStorageSnapshot {
+  if (journal == null) {
+    return snapshot;
+  }
+
+  const pendingIds = journal.affectedIds;
+  const accountIds = [...snapshot.accountIds];
+
+  for (const id of pendingIds) {
+    if (!accountIds.includes(id)) {
+      accountIds.push(id);
+    }
+  }
+
+  const recordsById = new Map(
+    journal.records.map(record => [record.id, record])
+  );
+  const currentById = new Map(
+    snapshot.damagedAccounts.map(account => [account.id, account.record])
+  );
+  const healthyById = new Map(
+    snapshot.accounts.map(account => [account.id, toAccountRecord(account)])
+  );
+  const pendingDamaged = pendingIds.map(id => ({
+    id,
+    record:
+      recordsById.get(id) ?? currentById.get(id) ?? healthyById.get(id) ?? null,
+    reason: 'write-recovery-failed' as const
+  }));
+  const pendingIdSet = new Set(pendingIds);
+
+  return {
+    accountIds,
+    accounts: snapshot.accounts.filter(
+      account => !pendingIdSet.has(account.id)
+    ),
+    damagedAccounts: [
+      ...snapshot.damagedAccounts.filter(
+        account => !pendingIdSet.has(account.id)
+      ),
+      ...pendingDamaged
+    ]
+  };
 }
 
 function sortAccounts(accounts: OtpAccount[]): OtpAccount[] {

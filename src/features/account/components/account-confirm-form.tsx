@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,10 @@ export function AccountConfirmForm({
   const [label, setLabel] = useState(() => draft?.label ?? '');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const pendingSave = useRef<{
+    key: string;
+    account: ReturnType<typeof createScannedOtpAccount>;
+  } | null>(null);
 
   const isDuplicate =
     draft != null && accounts.some(account => account.secret === draft.secret);
@@ -63,12 +67,19 @@ export function AccountConfirmForm({
       return;
     }
 
-    const account = createScannedOtpAccount(draft, trimmedLabel);
+    const inputKey = JSON.stringify({ draft, label: trimmedLabel });
+    const account =
+      pendingSave.current?.key === inputKey
+        ? pendingSave.current.account
+        : createScannedOtpAccount(draft, trimmedLabel);
+
+    pendingSave.current = { key: inputKey, account };
 
     try {
       setIsSaving(true);
       setSaveError(null);
       await addAccount(account);
+      pendingSave.current = null;
       deleteScannerDraft(draftId);
       onSaved();
     } catch {

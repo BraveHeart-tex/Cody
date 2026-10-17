@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import type { DamagedAccount } from '@/features/totp/storage/totp-storage';
 import { useCallback, useState } from 'react';
@@ -17,12 +18,17 @@ export function DamagedAccountCard({
   onRemove
 }: DamagedAccountCardProps) {
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleRetryPress = useCallback(async () => {
+    setActionError(null);
     setIsRetrying(true);
 
     try {
       await onRetry(account.id);
+    } catch {
+      setActionError('Could not recover this account. Try again.');
     } finally {
       setIsRetrying(false);
     }
@@ -40,7 +46,13 @@ export function DamagedAccountCard({
           text: 'Remove',
           style: 'destructive',
           onPress: () => {
-            void onRemove(account.id).catch(() => undefined);
+            setActionError(null);
+            setIsRemoving(true);
+            void onRemove(account.id)
+              .catch(() => {
+                setActionError('Could not remove this account. Try again.');
+              })
+              .finally(() => setIsRemoving(false));
           }
         }
       ]
@@ -59,11 +71,12 @@ export function DamagedAccountCard({
       <Text className="text-muted-foreground text-sm leading-5">
         {getIssueDescription(account)}
       </Text>
+      {actionError != null ? <StatusMessage value={actionError} /> : null}
       <View className="flex-row gap-3">
         <Button
-          accessibilityLabel={`Retry loading ${title}`}
+          accessibilityLabel={`Retry recovery of ${title}`}
           className="flex-1"
-          disabled={isRetrying}
+          disabled={isRetrying || isRemoving}
           onPress={() => void handleRetryPress().catch(() => undefined)}
           variant="outline"
         >
@@ -72,10 +85,11 @@ export function DamagedAccountCard({
         <Button
           accessibilityLabel={`Remove ${title}`}
           className="flex-1"
+          disabled={isRetrying || isRemoving}
           onPress={handleRemovePress}
           variant="destructive"
         >
-          <Text>Remove</Text>
+          <Text>{isRemoving ? 'Removing…' : 'Remove'}</Text>
         </Button>
       </View>
     </Card>
@@ -93,5 +107,7 @@ function getIssueDescription(account: DamagedAccount): string {
       return 'The saved secret is missing. Retry, or remove this entry and add the account again with its setup key or QR code.';
     case 'read-failed':
       return 'Cody could not read this account. Retry, or remove this entry and add the account again with its setup key or QR code.';
+    case 'write-recovery-failed':
+      return 'A save stopped partway through. Retry to finish recovering this account, or remove it from this device.';
   }
 }

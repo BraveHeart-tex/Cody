@@ -16,9 +16,11 @@ const SECURE_STORE_KEY_ID = /^[A-Za-z0-9._-]+$/;
 
 export const KEYS = {
   accountIndex: 'totp:accounts:index',
+  accountWriteJournal: 'totp:accounts:write-journal',
   accountIndexRecovery: (timestamp: number, sequence: number) =>
     `totp:accounts:index:recovery:${timestamp}:${sequence}`,
   accountRecord: (id: string) => `totp:accounts:${id}:record`,
+  stagedAccountSecret: 'totp.accounts.pending.secret',
   accountSecret: (id: string) => {
     if (!SECURE_STORE_KEY_ID.test(id)) {
       throw new Error('Invalid TOTP account id');
@@ -33,7 +35,8 @@ export type AccountStorageIssueReason =
   | 'invalid-record-json'
   | 'invalid-record'
   | 'missing-secret'
-  | 'read-failed';
+  | 'read-failed'
+  | 'write-recovery-failed';
 
 export interface DamagedAccount {
   id: string;
@@ -45,6 +48,15 @@ export interface AccountsStorageSnapshot {
   accountIds: string[];
   accounts: OtpAccount[];
   damagedAccounts: DamagedAccount[];
+}
+
+export interface AccountWriteJournal {
+  kind: 'write' | 'remove';
+  accountIds: string[];
+  affectedIds: string[];
+  records: OtpAccountRecord[];
+  secretAccountId: string | null;
+  removeAccountId: string | null;
 }
 
 export class CorruptAccountIndexError extends Error {
@@ -60,6 +72,117 @@ export async function getSecret(id: string): Promise<string | null> {
 
 export async function setSecret(id: string, secret: string): Promise<void> {
   await setItemAsync(KEYS.accountSecret(id), secret);
+}
+
+export async function setStagedAccountSecret(secret: string): Promise<void> {
+  await setItemAsync(KEYS.stagedAccountSecret, secret);
+}
+
+export async function getStagedAccountSecret(): Promise<string | null> {
+  return getItemAsync(KEYS.stagedAccountSecret);
+}
+
+export async function deleteStagedAccountSecret(): Promise<void> {
+  await deleteItemAsync(KEYS.stagedAccountSecret);
+}
+
+export async function getAccountWriteJournal(): Promise<AccountWriteJournal | null> {
+  const value = await AsyncStorage.getItem(KEYS.accountWriteJournal);
+
+  if (value == null) {
+    return null;
+  }
+
+  const journal: unknown = JSON.parse(value);
+
+  if (!isAccountWriteJournal(journal)) {
+    throw new Error('The saved account write recovery data is invalid.');
+  }
+
+  return journal;
+}
+
+export async function saveAccountWriteJournal(
+  journal: AccountWriteJournal
+): Promise<void> {
+  await writeJSON(KEYS.accountWriteJournal, journal);
+}
+
+export async function clearAccountWriteJournal(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.accountWriteJournal);
+}
+
+export async function applyAccountWriteJournal(
+  journal: AccountWriteJournal
+): Promise<void> {
+  if (journal.kind === 'remove') {
+    if (journal.removeAccountId == null) {
+      throw new Error('The saved account removal recovery data is invalid.');
+    }
+
+    await deleteAccountData(journal.removeAccountId);
+    await setAccountIndex(journal.accountIds);
+
+    if (journal.secretAccountId != null) {
+      await deleteStagedAccountSecret();
+    }
+
+    await clearAccountWriteJournal();
+
+    return;
+  }
+
+  const stagedSecret =
+    journal.secretAccountId == null ? null : await getStagedAccountSecret();
+
+  if (journal.secretAccountId != null && stagedSecret == null) {
+    throw new MissingStagedAccountSecretError();
+  }
+
+  for (const record of journal.records) {
+    await setAccountRecord(record);
+  }
+
+  if (journal.secretAccountId != null && stagedSecret != null) {
+    await setSecret(journal.secretAccountId, stagedSecret);
+  }
+
+  await setAccountIndex(journal.accountIds);
+
+  if (journal.secretAccountId != null) {
+    await deleteStagedAccountSecret();
+  }
+
+  await clearAccountWriteJournal();
+}
+
+export async function recoverAccountWriteJournal(): Promise<void> {
+  const journal = await getAccountWriteJournal();
+
+  if (journal == null) {
+    return;
+  }
+
+  if (
+    journal.kind === 'write' &&
+    journal.secretAccountId != null &&
+    (await getStagedAccountSecret()) == null
+  ) {
+    // Canonical writes do not begin until the pending secret is staged. A
+    // missing staged value therefore means this operation can be discarded.
+    await clearAccountWriteJournal();
+
+    return;
+  }
+
+  await applyAccountWriteJournal(journal);
+}
+
+export class MissingStagedAccountSecretError extends Error {
+  constructor() {
+    super('The pending account secret is not available.');
+    this.name = 'MissingStagedAccountSecretError';
+  }
 }
 
 export async function deleteSecret(id: string): Promise<void> {
@@ -149,6 +272,18 @@ export async function deleteAccountRecord(id: string): Promise<void> {
   await AsyncStorage.removeItem(KEYS.accountRecord(id));
 }
 
+export async function deleteAccountData(id: string): Promise<void> {
+  const results = await Promise.allSettled([
+    deleteAccountRecord(id),
+    deleteSecret(id)
+  ]);
+  const failedResult = results.find(result => result.status === 'rejected');
+
+  if (failedResult?.status === 'rejected') {
+    throw failedResult.reason;
+  }
+}
+
 export async function getAccountFromStores(
   id: string
 ): Promise<OtpAccount | DamagedAccount> {
@@ -210,6 +345,31 @@ class InvalidAccountRecordError extends Error {
 
 async function writeJSON<T>(key: string, value: T): Promise<void> {
   await AsyncStorage.setItem(key, JSON.stringify(value));
+}
+
+function isAccountWriteJournal(value: unknown): value is AccountWriteJournal {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (value.kind === 'write' || value.kind === 'remove') &&
+    Array.isArray(value.accountIds) &&
+    value.accountIds.every(id => typeof id === 'string') &&
+    Array.isArray(value.affectedIds) &&
+    value.affectedIds.every(id => typeof id === 'string') &&
+    Array.isArray(value.records) &&
+    value.records.every(isOtpAccountRecord) &&
+    (value.secretAccountId == null ||
+      isSecureStoreAccountId(value.secretAccountId)) &&
+    (value.kind === 'remove'
+      ? typeof value.removeAccountId === 'string'
+      : value.removeAccountId == null)
+  );
+}
+
+function isSecureStoreAccountId(value: unknown): value is string {
+  return typeof value === 'string' && SECURE_STORE_KEY_ID.test(value);
 }
 
 function isOtpAccount(value: OtpAccount | DamagedAccount): value is OtpAccount {

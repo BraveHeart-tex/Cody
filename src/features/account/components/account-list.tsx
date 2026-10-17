@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { StateCard } from '@/components/ui/state-card';
+import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { AccountCard } from '@/features/account/components/account-card';
 import { AccountListSkeleton } from '@/features/account/components/account-list-skeleton';
@@ -40,6 +41,7 @@ export function AccountList() {
   } = useAccounts();
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [operationError, setOperationError] = useState<string | null>(null);
   const listItems = useMemo(
     () => buildAccountListItems(accountIds, accounts, damagedAccounts),
     [accountIds, accounts, damagedAccounts]
@@ -78,8 +80,16 @@ export function AccountList() {
 
   const handleAccountDelete = useCallback(
     async (accountId: string) => {
-      await deleteAccount(accountId);
-      setActiveAccountId(null);
+      setOperationError(null);
+
+      try {
+        await deleteAccount(accountId);
+        setActiveAccountId(null);
+      } catch {
+        setOperationError(
+          'Could not delete this account. It remains saved; try again.'
+        );
+      }
     },
     [deleteAccount]
   );
@@ -174,12 +184,17 @@ export function AccountList() {
       keyExtractor={keyExtractor}
       ListFooterComponent={filteredItems.length > 0 ? ListFooterSpacer : null}
       ListHeaderComponent={
-        <AccountListHeaderSection
-          accountCount={accountIds.length}
-          onSearchChange={handleSearchChange}
-          onAddPress={handleAddPress}
-          searchQuery={searchQuery}
-        />
+        <View className="gap-3">
+          {operationError != null ? (
+            <StatusMessage value={operationError} />
+          ) : null}
+          <AccountListHeaderSection
+            accountCount={accountIds.length}
+            onSearchChange={handleSearchChange}
+            onAddPress={handleAddPress}
+            searchQuery={searchQuery}
+          />
+        </View>
       }
       ListEmptyComponent={
         accountIds.length === 0 ? (

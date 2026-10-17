@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,10 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const pendingSave = useRef<{
+    key: string;
+    account: ReturnType<typeof createManualOtpAccount>;
+  } | null>(null);
 
   const validation = useMemo(
     () =>
@@ -66,17 +70,30 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       return;
     }
 
-    const account = createManualOtpAccount({
+    const inputKey = JSON.stringify({
       issuer: validation.issuer,
       label: validation.label,
       secret: validation.secret,
       digits,
       period
     });
+    const account =
+      pendingSave.current?.key === inputKey
+        ? pendingSave.current.account
+        : createManualOtpAccount({
+            issuer: validation.issuer,
+            label: validation.label,
+            secret: validation.secret,
+            digits,
+            period
+          });
+
+    pendingSave.current = { key: inputKey, account };
 
     try {
       setIsSaving(true);
       await addAccount(account);
+      pendingSave.current = null;
       onSaved();
     } catch {
       setSaveError('Could not save this account. Try again.');
