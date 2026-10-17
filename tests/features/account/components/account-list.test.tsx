@@ -13,14 +13,26 @@ import {
   render,
   waitFor
 } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import { router } from 'expo-router';
 
 import type { UseAccountsResult } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
+import {
+  CorruptAccountIndexError,
+  type DamagedAccount
+} from '@/features/totp/storage/totp-storage';
 
 const mockDeleteAccount = jest.fn<UseAccountsResult['deleteAccount']>();
 const mockReorderAccounts = jest.fn<UseAccountsResult['reorderAccounts']>();
+const mockRetryAccount = jest.fn<UseAccountsResult['retryAccount']>();
+const mockRemoveDamagedAccount =
+  jest.fn<UseAccountsResult['removeDamagedAccount']>();
+const mockRetryLoad = jest.fn<UseAccountsResult['retryLoad']>();
+const mockStartReadding = jest.fn<UseAccountsResult['startReaddingAccounts']>();
 let mockAccounts: OtpAccount[] = [];
+let mockDamagedAccounts: DamagedAccount[] = [];
+let mockError: Error | null = null;
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -72,6 +84,18 @@ jest.mock('@/components/ui/state-card', () => {
       React.createElement(Text, null, title)
   };
 });
+
+jest.mock('@/features/totp/storage/totp-storage', () => ({
+  CorruptAccountIndexError: class CorruptAccountIndexError extends Error {
+    rawValue: string;
+
+    constructor(mockRawValue: string) {
+      super('The saved account index is not valid JSON.');
+      this.name = 'CorruptAccountIndexError';
+      this.rawValue = mockRawValue;
+    }
+  }
+}));
 
 jest.mock('@/components/ui/text', () => {
   const React = require('react');
@@ -145,13 +169,60 @@ jest.mock('@/features/account/components/account-card', () => {
   };
 });
 
+jest.mock('@/features/account/components/damaged-account-card', () => {
+  const React = require('react');
+  const { Pressable, Text, View } = require('react-native');
+
+  return {
+    DamagedAccountCard: ({
+      account,
+      onRemove,
+      onRetry
+    }: {
+      account: DamagedAccount;
+      onRemove: (id: string) => void;
+      onRetry: (id: string) => void;
+    }) =>
+      React.createElement(
+        View,
+        null,
+        React.createElement(Text, null, `Damaged ${account.id}`),
+        React.createElement(
+          Pressable,
+          {
+            onPress: () => onRetry(account.id),
+            testID: `damaged-retry-${account.id}`
+          },
+          React.createElement(Text, null, 'Retry')
+        ),
+        React.createElement(
+          Pressable,
+          {
+            onPress: () => onRemove(account.id),
+            testID: `damaged-remove-${account.id}`
+          },
+          React.createElement(Text, null, 'Remove')
+        )
+      )
+  };
+});
+
 jest.mock('@/features/totp/hooks/use-accounts', () => ({
   useAccounts: (): UseAccountsResult => ({
     accounts: mockAccounts,
+    accountIds: [
+      ...mockAccounts.map(account => account.id),
+      ...mockDamagedAccounts.map(account => account.id)
+    ],
+    damagedAccounts: mockDamagedAccounts,
     addAccount: jest.fn<UseAccountsResult['addAccount']>(),
     deleteAccount: mockDeleteAccount,
-    error: null,
+    error: mockError,
     isLoading: false,
+    retryLoad: mockRetryLoad,
+    retryAccount: mockRetryAccount,
+    removeDamagedAccount: mockRemoveDamagedAccount,
+    startReaddingAccounts: mockStartReadding,
     reorderAccounts: mockReorderAccounts,
     updateAccount: jest.fn<UseAccountsResult['updateAccount']>()
   })
@@ -184,6 +255,8 @@ const secondAccount: OtpAccount = {
 describe('AccountList', () => {
   beforeEach(() => {
     mockAccounts = [account];
+    mockDamagedAccounts = [];
+    mockError = null;
     mockDeleteAccount.mockImplementation(async id => {
       mockAccounts = mockAccounts.filter(candidate => candidate.id !== id);
     });
@@ -191,8 +264,13 @@ describe('AccountList', () => {
 
   afterEach(async () => {
     await cleanup();
+    jest.restoreAllMocks();
     mockDeleteAccount.mockReset();
     mockReorderAccounts.mockReset();
+    mockRetryAccount.mockReset();
+    mockRemoveDamagedAccount.mockReset();
+    mockRetryLoad.mockReset();
+    mockStartReadding.mockReset();
     jest.mocked(router.push).mockReset();
     jest.mocked(router.replace).mockReset();
   });
@@ -301,5 +379,48 @@ describe('AccountList', () => {
     await fireEvent.press(getByTestId('account-move-account-id'));
 
     expect(router.push).toHaveBeenCalledWith('/move-accounts');
+  });
+
+  it('keeps a damaged account visible and retries it independently', async () => {
+    mockDamagedAccounts = [
+      { id: 'damaged-id', record: null, reason: 'missing-record' }
+    ];
+    mockRetryAccount.mockResolvedValue(undefined);
+
+    const { getByTestId, getByText } = await render(<AccountList />);
+
+    expect(getByText('GitHub')).toBeTruthy();
+    expect(getByText('Damaged damaged-id')).toBeTruthy();
+
+    await fireEvent.press(getByTestId('damaged-retry-damaged-id'));
+
+    expect(mockRetryAccount).toHaveBeenCalledWith('damaged-id');
+  });
+
+  it('offers retry and confirmed re-add for a corrupt index', async () => {
+    mockError = new CorruptAccountIndexError('{');
+    mockRetryLoad.mockResolvedValue(undefined);
+    mockStartReadding.mockResolvedValue(undefined);
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+    const { getByLabelText } = await render(<AccountList />);
+
+    await fireEvent.press(getByLabelText('Retry loading saved accounts'));
+    await fireEvent.press(getByLabelText('Re-add accounts'));
+
+    expect(mockRetryLoad).toHaveBeenCalledTimes(1);
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Re-add saved accounts?',
+      expect.any(String),
+      expect.any(Array)
+    );
+    const buttons = alertSpy.mock.calls[0]?.[2];
+    const continueButton = buttons?.find(button => button.text === 'Continue');
+
+    continueButton?.onPress?.();
+
+    await waitFor(() => {
+      expect(mockStartReadding).toHaveBeenCalledTimes(1);
+    });
   });
 });

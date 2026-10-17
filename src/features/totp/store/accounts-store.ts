@@ -2,12 +2,17 @@ import { create, type StoreApi } from 'zustand';
 
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 import {
+  archiveCorruptAccountIndex,
+  CorruptAccountIndexError,
   deleteAccountRecord,
   deleteSecret,
+  getAccountFromStores,
   getAllAccounts,
   setAccountIndex,
   setAccountRecord,
-  setSecret
+  setSecret,
+  type AccountsStorageSnapshot,
+  type DamagedAccount
 } from '@/features/totp/storage/totp-storage';
 
 export type AccountsLoadStatus = 'idle' | 'loading' | 'loaded' | 'failed';
@@ -18,10 +23,16 @@ export type UpdateAccountInput = Partial<Omit<OtpAccount, 'id'>>;
 
 export interface AccountsStoreState {
   accounts: OtpAccount[];
+  accountIds: string[];
+  damagedAccounts: DamagedAccount[];
   isLoading: boolean;
   error: Error | null;
   loadStatus: AccountsLoadStatus;
   loadAccounts: () => Promise<void>;
+  retryLoad: () => Promise<void>;
+  retryAccount: (id: string) => Promise<void>;
+  removeDamagedAccount: (id: string) => Promise<void>;
+  startReaddingAccounts: () => Promise<void>;
   addAccount: (account: AddAccountInput) => Promise<void>;
   updateAccount: (id: string, changes: UpdateAccountInput) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
@@ -30,8 +41,10 @@ export interface AccountsStoreState {
 
 const initialState = {
   accounts: [] as OtpAccount[],
+  accountIds: [] as string[],
+  damagedAccounts: [] as DamagedAccount[],
   isLoading: true,
-  error: null,
+  error: null as Error | null,
   loadStatus: 'idle' as AccountsLoadStatus
 };
 
@@ -55,13 +68,8 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
     set({ isLoading: true, loadStatus: 'loading' });
 
     loadPromise = getAllAccounts()
-      .then(storedAccounts => {
-        set({
-          accounts: sortAccounts(storedAccounts),
-          error: null,
-          isLoading: false,
-          loadStatus: 'loaded'
-        });
+      .then(snapshot => {
+        commitSnapshot(set, snapshot);
       })
       .catch(cause => {
         const loadError = toError(cause);
@@ -77,6 +85,98 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
       });
 
     return loadPromise;
+  },
+
+  retryLoad: async () => {
+    if (get().isLoading) {
+      return get().loadAccounts();
+    }
+
+    loadPromise = null;
+    set({ error: null, isLoading: false, loadStatus: 'idle' });
+    await get().loadAccounts();
+  },
+
+  retryAccount: async id => {
+    await runMutation(async () => {
+      if (!get().accountIds.includes(id)) {
+        return;
+      }
+
+      const result = await getAccountFromStores(id);
+      const current = get();
+      const nextAccounts = current.accounts.filter(
+        account => account.id !== id
+      );
+      const nextDamaged = current.damagedAccounts.filter(
+        account => account.id !== id
+      );
+
+      if ('secret' in result) {
+        nextAccounts.push(result);
+      } else {
+        nextDamaged.push(result);
+      }
+
+      set({
+        accounts: sortAccounts(nextAccounts),
+        damagedAccounts: orderDamagedAccounts(current.accountIds, nextDamaged)
+      });
+    });
+  },
+
+  removeDamagedAccount: async id => {
+    await runMutation(async () => {
+      try {
+        const { accountIds, damagedAccounts } = get();
+
+        if (!damagedAccounts.some(account => account.id === id)) {
+          return;
+        }
+
+        const nextIds = accountIds.filter(accountId => accountId !== id);
+
+        // Remove the pair before updating the index so an interrupted cleanup
+        // stays visible as a damaged entry instead of silently disappearing.
+        await Promise.all([deleteAccountRecord(id), deleteSecret(id)]);
+        await setAccountIndex(nextIds);
+
+        set({
+          accountIds: nextIds,
+          damagedAccounts: damagedAccounts.filter(account => account.id !== id),
+          error: null,
+          loadStatus: 'loaded'
+        });
+      } catch (cause) {
+        const mutationError = toError(cause);
+
+        set({ error: mutationError });
+
+        throw mutationError;
+      }
+    });
+  },
+
+  startReaddingAccounts: async () => {
+    await runMutation(async () => {
+      const error = get().error;
+
+      if (!(error instanceof CorruptAccountIndexError)) {
+        throw new Error('The saved account index is not ready to reset.');
+      }
+
+      await archiveCorruptAccountIndex(error.rawValue);
+      await setAccountIndex([]);
+      loadPromise = null;
+      set({
+        accountIds: [],
+        accounts: [],
+        damagedAccounts: [],
+        error: null,
+        isLoading: false,
+        loadStatus: 'loaded'
+      });
+    });
   },
 
   addAccount: async account => {
@@ -107,16 +207,17 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
     await runMutation(async () => {
       try {
         await get().loadAccounts();
-
-        const nextAccounts = get().accounts.filter(
-          account => account.id !== id
+        const { accountIds, accounts, damagedAccounts } = get();
+        const nextAccounts = accounts.filter(account => account.id !== id);
+        const nextIds = mergeAccountIds(
+          accountIds,
+          accounts.map(account => account.id),
+          nextAccounts.map(account => account.id)
         );
 
-        await setAccountIndex(
-          nextAccounts.map(({ id: accountId }) => accountId)
-        );
+        await setAccountIndex(nextIds);
         await Promise.all([deleteAccountRecord(id), deleteSecret(id)]);
-        commitAccounts(set, nextAccounts);
+        commitHealthyMutation(set, nextIds, nextAccounts, damagedAccounts);
       } catch (cause) {
         const mutationError = toError(cause);
 
@@ -131,28 +232,37 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
     await runMutation(async () => {
       try {
         await get().loadAccounts();
-
-        const currentAccounts = get().accounts;
+        const { accounts, accountIds, damagedAccounts } = get();
         const accountById = new Map(
-          currentAccounts.map(account => [account.id, account])
+          accounts.map(account => [account.id, account])
         );
         const reorderedAccounts = ids
           .map(id => accountById.get(id))
           .filter((account): account is OtpAccount => account != null);
         const reorderedIds = new Set(reorderedAccounts.map(({ id }) => id));
-        const remainingAccounts = currentAccounts.filter(
+        const remainingAccounts = accounts.filter(
           ({ id }) => !reorderedIds.has(id)
         );
-
-        const nextAccounts = [...reorderedAccounts, ...remainingAccounts].map(
-          (account, index) => ({
+        const orderedHealthyIds = [
+          ...reorderedAccounts,
+          ...remainingAccounts
+        ].map(account => account.id);
+        const nextIds = mergeAccountIds(
+          accountIds,
+          accounts.map(account => account.id),
+          orderedHealthyIds
+        );
+        const sortOrderById = new Map(nextIds.map((id, index) => [id, index]));
+        const nextAccounts = sortAccounts(
+          accounts.map(account => ({
             ...account,
-            sortOrder: index
-          })
+            sortOrder: sortOrderById.get(account.id) ?? account.sortOrder
+          }))
         );
 
-        await persistAccountOrder(nextAccounts, currentAccounts);
-        commitAccounts(set, nextAccounts);
+        await persistAccountOrder(nextAccounts, accounts);
+        await setAccountIndex(nextIds);
+        commitHealthyMutation(set, nextIds, nextAccounts, damagedAccounts);
       } catch (cause) {
         const mutationError = toError(cause);
 
@@ -186,10 +296,18 @@ async function persistMutation(
   try {
     await get().loadAccounts();
 
-    const nextAccounts = sortAccounts(getNextAccounts(get().accounts));
+    const current = get();
+    const orderedAccounts = sortAccounts(getNextAccounts(current.accounts));
+    const nextIds = mergeAccountIds(
+      current.accountIds,
+      current.accounts.map(account => account.id),
+      orderedAccounts.map(account => account.id)
+    );
+    const nextAccounts = orderedAccounts;
 
     await persistAccounts(nextAccounts);
-    commitAccounts(set, nextAccounts);
+    await setAccountIndex(nextIds);
+    commitHealthyMutation(set, nextIds, nextAccounts, current.damagedAccounts);
   } catch (cause) {
     const mutationError = toError(cause);
 
@@ -199,15 +317,73 @@ async function persistMutation(
   }
 }
 
-function commitAccounts(
+function commitSnapshot(
   set: AccountsStoreSet,
-  nextAccounts: OtpAccount[]
+  snapshot: AccountsStorageSnapshot
 ): void {
   set({
-    accounts: sortAccounts(nextAccounts),
+    accountIds: snapshot.accountIds,
+    accounts: sortAccounts(snapshot.accounts),
+    damagedAccounts: orderDamagedAccounts(
+      snapshot.accountIds,
+      snapshot.damagedAccounts
+    ),
     error: null,
     isLoading: false,
     loadStatus: 'loaded'
+  });
+}
+
+function commitHealthyMutation(
+  set: AccountsStoreSet,
+  accountIds: string[],
+  accounts: OtpAccount[],
+  damagedAccounts: DamagedAccount[]
+): void {
+  set({
+    accountIds,
+    accounts: sortAccounts(accounts),
+    damagedAccounts: orderDamagedAccounts(accountIds, damagedAccounts),
+    error: null,
+    isLoading: false,
+    loadStatus: 'loaded'
+  });
+}
+
+function mergeAccountIds(
+  currentIds: string[],
+  currentHealthyIds: string[],
+  nextHealthyIds: string[]
+): string[] {
+  const healthyIds = new Set(currentHealthyIds);
+  let nextHealthyIndex = 0;
+  const merged = currentIds.flatMap(id => {
+    if (!healthyIds.has(id)) {
+      return [id];
+    }
+
+    const nextId = nextHealthyIds[nextHealthyIndex];
+
+    nextHealthyIndex += 1;
+
+    return nextId == null ? [] : [nextId];
+  });
+
+  return [...merged, ...nextHealthyIds.slice(nextHealthyIndex)];
+}
+
+function orderDamagedAccounts(
+  accountIds: string[],
+  damagedAccounts: DamagedAccount[]
+): DamagedAccount[] {
+  const damagedById = new Map(
+    damagedAccounts.map(account => [account.id, account])
+  );
+
+  return accountIds.flatMap(id => {
+    const account = damagedById.get(id);
+
+    return account == null ? [] : [account];
   });
 }
 
@@ -220,7 +396,6 @@ async function persistAccounts(accounts: OtpAccount[]): Promise<void> {
       ]);
     })
   );
-  await setAccountIndex(accounts.map(({ id }) => id));
 }
 
 async function persistAccountOrder(
@@ -239,7 +414,6 @@ async function persistAccountOrder(
       await setAccountRecord(record);
     })
   );
-  await setAccountIndex(nextAccounts.map(({ id }) => id));
 }
 
 function sortAccounts(accounts: OtpAccount[]): OtpAccount[] {

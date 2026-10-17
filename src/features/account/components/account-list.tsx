@@ -5,8 +5,13 @@ import { Text } from '@/components/ui/text';
 import { AccountCard } from '@/features/account/components/account-card';
 import { AccountListSkeleton } from '@/features/account/components/account-list-skeleton';
 import { AccountSearchInput } from '@/features/account/components/account-search-input';
+import { DamagedAccountCard } from '@/features/account/components/damaged-account-card';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
+import {
+  CorruptAccountIndexError,
+  type DamagedAccount
+} from '@/features/totp/storage/totp-storage';
 import { router } from 'expo-router';
 import {
   KeyboardIcon,
@@ -15,18 +20,33 @@ import {
   ShieldCheckIcon
 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, type ListRenderItemInfo, View } from 'react-native';
+import { Alert, FlatList, type ListRenderItemInfo, View } from 'react-native';
 
 const ACCOUNT_LIST_BATCH_SIZE = 12;
 const ACCOUNT_LIST_WINDOW_SIZE = 7;
 
 export function AccountList() {
-  const { accounts, deleteAccount, error, isLoading } = useAccounts();
+  const {
+    accounts,
+    accountIds,
+    damagedAccounts,
+    deleteAccount,
+    error,
+    isLoading,
+    removeDamagedAccount,
+    retryAccount,
+    retryLoad,
+    startReaddingAccounts
+  } = useAccounts();
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const filteredAccounts = useMemo(
-    () => filterAccounts(accounts, searchQuery),
-    [accounts, searchQuery]
+  const listItems = useMemo(
+    () => buildAccountListItems(accountIds, accounts, damagedAccounts),
+    [accountIds, accounts, damagedAccounts]
+  );
+  const filteredItems = useMemo(
+    () => filterAccountListItems(listItems, searchQuery),
+    [listItems, searchQuery]
   );
 
   const handleAddPress = useCallback(() => {
@@ -64,22 +84,47 @@ export function AccountList() {
     [deleteAccount]
   );
 
+  const handleReaddAccounts = useCallback(() => {
+    Alert.alert(
+      'Re-add saved accounts?',
+      'Cody will archive the damaged account index and start a new list. Saved account records and secrets will remain on this device, but you will need the original setup keys or QR codes to add accounts again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            void startReaddingAccounts().catch(() => undefined);
+          }
+        }
+      ]
+    );
+  }, [startReaddingAccounts]);
+
   const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<OtpAccount>) => (
-      <AccountCard
-        account={item}
-        isActive={item.id === activeAccountId}
-        onDelete={handleAccountDelete}
-        onMove={accounts.length > 1 ? handleMovePress : undefined}
-        onPress={handleAccountPress}
-      />
-    ),
+    ({ item }: ListRenderItemInfo<AccountListItem>) =>
+      item.kind === 'damaged' ? (
+        <DamagedAccountCard
+          account={item.account}
+          onRemove={removeDamagedAccount}
+          onRetry={retryAccount}
+        />
+      ) : (
+        <AccountCard
+          account={item.account}
+          isActive={item.account.id === activeAccountId}
+          onDelete={handleAccountDelete}
+          onMove={accounts.length > 1 ? handleMovePress : undefined}
+          onPress={handleAccountPress}
+        />
+      ),
     [
       accounts.length,
       activeAccountId,
       handleAccountDelete,
       handleAccountPress,
-      handleMovePress
+      handleMovePress,
+      removeDamagedAccount,
+      retryAccount
     ]
   );
 
@@ -89,10 +134,32 @@ export function AccountList() {
 
   if (error != null) {
     return (
-      <StateCard
-        description="Try closing and reopening the app. Your saved secrets were not changed."
-        title="Could not load saved accounts"
-      />
+      <View className="gap-3">
+        <StateCard
+          description={
+            error instanceof CorruptAccountIndexError
+              ? 'The saved account list is damaged. Retry, or start a new list and add accounts again with their original setup keys or QR codes.'
+              : 'Cody could not read the saved accounts. Retry to try again.'
+          }
+          title="Could not load saved accounts"
+        />
+        <Button
+          accessibilityLabel="Retry loading saved accounts"
+          onPress={() => void retryLoad().catch(() => undefined)}
+          variant="outline"
+        >
+          <Text>Retry</Text>
+        </Button>
+        {error instanceof CorruptAccountIndexError ? (
+          <Button
+            accessibilityLabel="Re-add accounts"
+            onPress={handleReaddAccounts}
+            variant="destructive"
+          >
+            <Text>Re-add accounts</Text>
+          </Button>
+        ) : null}
+      </View>
     );
   }
 
@@ -100,26 +167,22 @@ export function AccountList() {
     <FlatList
       className="flex-1"
       contentContainerClassName={
-        filteredAccounts.length === 0
-          ? 'flex-grow gap-3 pb-safe'
-          : 'gap-3 pb-safe'
+        filteredItems.length === 0 ? 'flex-grow gap-3 pb-safe' : 'gap-3 pb-safe'
       }
-      data={filteredAccounts}
+      data={filteredItems}
       initialNumToRender={ACCOUNT_LIST_BATCH_SIZE}
       keyExtractor={keyExtractor}
-      ListFooterComponent={
-        filteredAccounts.length > 0 ? ListFooterSpacer : null
-      }
+      ListFooterComponent={filteredItems.length > 0 ? ListFooterSpacer : null}
       ListHeaderComponent={
         <AccountListHeaderSection
-          accountCount={accounts.length}
+          accountCount={accountIds.length}
           onSearchChange={handleSearchChange}
           onAddPress={handleAddPress}
           searchQuery={searchQuery}
         />
       }
       ListEmptyComponent={
-        accounts.length === 0 ? (
+        accountIds.length === 0 ? (
           <AccountListEmpty
             onManualPress={handleManualPress}
             onScanPress={handleScanPress}
@@ -136,22 +199,63 @@ export function AccountList() {
   );
 }
 
-function keyExtractor(account: OtpAccount): string {
-  return account.id;
+type AccountListItem =
+  | { kind: 'account'; account: OtpAccount }
+  | { kind: 'damaged'; account: DamagedAccount };
+
+function buildAccountListItems(
+  accountIds: string[],
+  accounts: OtpAccount[],
+  damagedAccounts: DamagedAccount[]
+): AccountListItem[] {
+  const accountsById = new Map(accounts.map(account => [account.id, account]));
+  const damagedById = new Map(
+    damagedAccounts.map(account => [account.id, account])
+  );
+
+  return accountIds.flatMap<AccountListItem>(id => {
+    const account = accountsById.get(id);
+
+    if (account != null) {
+      return [{ kind: 'account' as const, account }];
+    }
+
+    const damagedAccount = damagedById.get(id);
+
+    return damagedAccount == null
+      ? []
+      : [{ kind: 'damaged' as const, account: damagedAccount }];
+  });
 }
 
-function filterAccounts(accounts: OtpAccount[], searchQuery: string) {
+function keyExtractor(item: AccountListItem): string {
+  return item.account.id;
+}
+
+function filterAccountListItems(
+  items: AccountListItem[],
+  searchQuery: string
+): AccountListItem[] {
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   if (normalizedQuery.length === 0) {
-    return accounts;
+    return items;
   }
 
-  return accounts.filter(account => {
-    const issuer = account.issuer.toLowerCase();
-    const label = account.label.toLowerCase();
+  return items.filter(item => {
+    const issuer =
+      item.kind === 'account'
+        ? item.account.issuer
+        : (item.account.record?.issuer ?? '');
+    const label =
+      item.kind === 'account'
+        ? item.account.label
+        : (item.account.record?.label ?? item.account.id);
 
-    return issuer.includes(normalizedQuery) || label.includes(normalizedQuery);
+    return (
+      issuer.toLowerCase().includes(normalizedQuery) ||
+      label.toLowerCase().includes(normalizedQuery)
+    );
   });
 }
 

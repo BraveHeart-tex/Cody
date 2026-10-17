@@ -89,10 +89,17 @@ jest.mock('@/components/ui/text', () => {
 jest.mock('@/features/totp/hooks/use-accounts', () => ({
   useAccounts: (): UseAccountsResult => ({
     accounts: mockAccounts,
+    accountIds: mockAccounts.map(account => account.id),
+    damagedAccounts: [],
     addAccount: mockAddAccount,
     deleteAccount: jest.fn<UseAccountsResult['deleteAccount']>(),
     error: null,
     isLoading: false,
+    retryLoad: jest.fn<UseAccountsResult['retryLoad']>(),
+    retryAccount: jest.fn<UseAccountsResult['retryAccount']>(),
+    removeDamagedAccount: jest.fn<UseAccountsResult['removeDamagedAccount']>(),
+    startReaddingAccounts:
+      jest.fn<UseAccountsResult['startReaddingAccounts']>(),
     reorderAccounts: jest.fn<UseAccountsResult['reorderAccounts']>(),
     updateAccount: jest.fn<UseAccountsResult['updateAccount']>()
   })

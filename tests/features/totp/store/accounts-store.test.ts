@@ -12,8 +12,19 @@ import type { UpdateAccountInput } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 jest.mock('@/features/totp/storage/totp-storage', () => ({
+  CorruptAccountIndexError: class CorruptAccountIndexError extends Error {
+    rawValue: string;
+
+    constructor(mockRawValue: string) {
+      super('The saved account index is not valid JSON.');
+      this.name = 'CorruptAccountIndexError';
+      this.rawValue = mockRawValue;
+    }
+  },
+  archiveCorruptAccountIndex: jest.fn(),
   deleteAccountRecord: jest.fn(),
   deleteSecret: jest.fn(),
+  getAccountFromStores: jest.fn(),
   getAllAccounts: jest.fn(),
   setAccountIndex: jest.fn(),
   setAccountRecord: jest.fn(),
@@ -21,8 +32,11 @@ jest.mock('@/features/totp/storage/totp-storage', () => ({
 }));
 
 import {
+  CorruptAccountIndexError,
+  archiveCorruptAccountIndex,
   deleteAccountRecord,
   deleteSecret,
+  getAccountFromStores,
   getAllAccounts,
   setAccountIndex,
   setAccountRecord,
@@ -35,6 +49,8 @@ import {
 
 const mockDeleteAccountRecord = jest.mocked(deleteAccountRecord);
 const mockDeleteSecret = jest.mocked(deleteSecret);
+const mockArchiveCorruptAccountIndex = jest.mocked(archiveCorruptAccountIndex);
+const mockGetAccountFromStores = jest.mocked(getAccountFromStores);
 const mockGetAllAccounts = jest.mocked(getAllAccounts);
 const mockSetAccountIndex = jest.mocked(setAccountIndex);
 const mockSetAccountRecord = jest.mocked(setAccountRecord);
@@ -60,16 +76,23 @@ const thirdAccount = createAccount({
   label: 'team@example.com',
   sortOrder: 2
 });
+const damagedAccount = {
+  id: 'damaged-account-id',
+  record: null,
+  reason: 'missing-secret' as const
+};
 
 describe('accounts store', () => {
   beforeEach(() => {
     resetAccountsStoreForTest();
-    mockGetAllAccounts.mockResolvedValue([]);
+    mockGetAllAccounts.mockResolvedValue(createSnapshot([]));
+    mockGetAccountFromStores.mockResolvedValue(damagedAccount);
     mockSetAccountRecord.mockResolvedValue(undefined);
     mockSetSecret.mockResolvedValue(undefined);
     mockSetAccountIndex.mockResolvedValue(undefined);
     mockDeleteAccountRecord.mockResolvedValue(undefined);
     mockDeleteSecret.mockResolvedValue(undefined);
+    mockArchiveCorruptAccountIndex.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -78,7 +101,7 @@ describe('accounts store', () => {
   });
 
   it('coalesces concurrent account loads', async () => {
-    mockGetAllAccounts.mockResolvedValueOnce([account]);
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([account]));
 
     await Promise.all([
       useAccountsStore.getState().loadAccounts(),
@@ -109,7 +132,7 @@ describe('accounts store', () => {
       loadStatus: 'failed'
     });
 
-    mockGetAllAccounts.mockResolvedValueOnce([account]);
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([account]));
     await useAccountsStore.getState().loadAccounts();
 
     expect(mockGetAllAccounts).toHaveBeenCalledTimes(2);
@@ -117,6 +140,130 @@ describe('accounts store', () => {
       accounts: [account],
       error: null,
       isLoading: false,
+      loadStatus: 'loaded'
+    });
+  });
+
+  it('retries only the selected damaged account', async () => {
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([account], [damagedAccount])
+    );
+    mockGetAccountFromStores.mockResolvedValueOnce(secondAccount);
+
+    await useAccountsStore.getState().loadAccounts();
+    await useAccountsStore.getState().retryAccount('damaged-account-id');
+
+    expect(mockGetAccountFromStores).toHaveBeenCalledWith('damaged-account-id');
+    expect(useAccountsStore.getState()).toMatchObject({
+      accountIds: ['account-id', 'damaged-account-id'],
+      accounts: [account, secondAccount],
+      damagedAccounts: []
+    });
+  });
+
+  it('removes a damaged account without dropping healthy ids', async () => {
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([account], [damagedAccount])
+    );
+
+    await useAccountsStore.getState().loadAccounts();
+    await useAccountsStore
+      .getState()
+      .removeDamagedAccount('damaged-account-id');
+
+    expect(mockDeleteAccountRecord).toHaveBeenCalledWith('damaged-account-id');
+    expect(mockDeleteSecret).toHaveBeenCalledWith('damaged-account-id');
+    expect(mockSetAccountIndex).toHaveBeenLastCalledWith(['account-id']);
+    expect(useAccountsStore.getState()).toMatchObject({
+      accountIds: ['account-id'],
+      accounts: [account],
+      damagedAccounts: []
+    });
+  });
+
+  it('reloads from storage when retrying after a mutation error', async () => {
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([account]));
+    await useAccountsStore.getState().loadAccounts();
+
+    useAccountsStore.setState({ error: new Error('write failed') });
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([secondAccount]));
+    await useAccountsStore.getState().retryLoad();
+
+    expect(mockGetAllAccounts).toHaveBeenCalledTimes(2);
+    expect(useAccountsStore.getState()).toMatchObject({
+      accounts: [secondAccount],
+      error: null,
+      loadStatus: 'loaded'
+    });
+  });
+
+  it('preserves damaged ids while adding healthy accounts', async () => {
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([account], [damagedAccount])
+    );
+    const addedAccount = createAccount({
+      id: 'new-account-id',
+      issuer: 'Linear',
+      label: 'new@example.com',
+      sortOrder: 0
+    });
+
+    await useAccountsStore.getState().loadAccounts();
+    await useAccountsStore.getState().addAccount(addedAccount);
+
+    expect(mockSetAccountIndex).toHaveBeenLastCalledWith([
+      'account-id',
+      'damaged-account-id',
+      'new-account-id'
+    ]);
+    expect(useAccountsStore.getState().damagedAccounts).toEqual([
+      damagedAccount
+    ]);
+  });
+
+  it('keeps damaged ids in place while reordering healthy accounts', async () => {
+    const middleDamaged = { ...damagedAccount, id: 'middle-damaged-id' };
+
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot(
+        [account, secondAccount],
+        [middleDamaged],
+        ['account-id', 'middle-damaged-id', 'second-account-id']
+      )
+    );
+
+    await useAccountsStore.getState().loadAccounts();
+    await useAccountsStore
+      .getState()
+      .reorderAccounts(['second-account-id', 'account-id']);
+
+    expect(mockSetAccountIndex).toHaveBeenLastCalledWith([
+      'second-account-id',
+      'middle-damaged-id',
+      'account-id'
+    ]);
+    expect(useAccountsStore.getState().damagedAccounts).toEqual([
+      middleDamaged
+    ]);
+  });
+
+  it('archives a corrupt index before starting a new account list', async () => {
+    const corruptIndexError = new CorruptAccountIndexError('{');
+
+    mockGetAllAccounts.mockRejectedValueOnce(corruptIndexError);
+
+    await expect(useAccountsStore.getState().loadAccounts()).rejects.toBe(
+      corruptIndexError
+    );
+    await useAccountsStore.getState().startReaddingAccounts();
+
+    expect(mockArchiveCorruptAccountIndex).toHaveBeenCalledWith('{');
+    expect(mockSetAccountIndex).toHaveBeenLastCalledWith([]);
+    expect(useAccountsStore.getState()).toMatchObject({
+      accountIds: [],
+      accounts: [],
+      damagedAccounts: [],
+      error: null,
       loadStatus: 'loaded'
     });
   });
@@ -130,7 +277,7 @@ describe('accounts store', () => {
       sortOrder: 99
     });
 
-    mockGetAllAccounts.mockResolvedValueOnce([loadedAccount]);
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([loadedAccount]));
 
     await useAccountsStore.getState().loadAccounts();
     await useAccountsStore.getState().addAccount(addedAccount);
@@ -156,7 +303,7 @@ describe('accounts store', () => {
   });
 
   it('preserves the target id when updating an account', async () => {
-    mockGetAllAccounts.mockResolvedValueOnce([account]);
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([account]));
 
     await useAccountsStore.getState().loadAccounts();
     await useAccountsStore.getState().updateAccount('account-id', {
@@ -179,7 +326,9 @@ describe('accounts store', () => {
   });
 
   it('deletes account storage after writing the new index', async () => {
-    mockGetAllAccounts.mockResolvedValueOnce([account, secondAccount]);
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([account, secondAccount])
+    );
 
     await useAccountsStore.getState().loadAccounts();
     await useAccountsStore.getState().deleteAccount('account-id');
@@ -191,11 +340,9 @@ describe('accounts store', () => {
   });
 
   it('reorders known ids, appends missing current accounts, and rewrites sort order', async () => {
-    mockGetAllAccounts.mockResolvedValueOnce([
-      account,
-      secondAccount,
-      thirdAccount
-    ]);
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([account, secondAccount, thirdAccount])
+    );
 
     await useAccountsStore.getState().loadAccounts();
     await useAccountsStore
@@ -237,7 +384,7 @@ describe('accounts store', () => {
       sortOrder: 0
     });
 
-    mockGetAllAccounts.mockResolvedValueOnce([]);
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([]));
 
     await Promise.all([
       useAccountsStore.getState().addAccount(firstAddedAccount),
@@ -257,7 +404,9 @@ describe('accounts store', () => {
   it('keeps current state when a mutation fails before commit', async () => {
     const storageError = new Error('index failed');
 
-    mockGetAllAccounts.mockResolvedValueOnce([account, secondAccount]);
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([account, secondAccount])
+    );
     mockSetAccountIndex.mockRejectedValueOnce(storageError);
 
     await useAccountsStore.getState().loadAccounts();
@@ -298,4 +447,15 @@ function createAccount({
     sortOrder,
     createdAt: 123
   };
+}
+
+function createSnapshot(
+  accounts: OtpAccount[],
+  damagedAccounts: (typeof damagedAccount)[] = [],
+  accountIds = [
+    ...accounts.map(account => account.id),
+    ...damagedAccounts.map(account => account.id)
+  ]
+) {
+  return { accountIds, accounts, damagedAccounts };
 }
