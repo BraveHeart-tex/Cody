@@ -12,12 +12,19 @@ import {
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import {
+  AppState,
+  Linking,
+  type LayoutChangeEvent,
+  StyleSheet,
+  View
+} from 'react-native';
 
 export function ScannerView() {
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraKey, setCameraKey] = useState(0);
   const [footerHeight, setFooterHeight] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
   const hasNavigatedRef = useRef(false);
@@ -36,14 +43,37 @@ export function ScannerView() {
   );
 
   useEffect(() => {
-    if (permission == null) {
+    if (permission?.status === 'undetermined' && permission.canAskAgain) {
       void requestPermission();
     }
   }, [permission, requestPermission]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        void getPermission().catch(() => undefined);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [getPermission]);
+
   const handleRetryPermission = useCallback(() => {
     void requestPermission();
   }, [requestPermission]);
+
+  const handleOpenSettings = useCallback(() => {
+    void Linking.openSettings().catch(() => undefined);
+  }, []);
+
+  const handleManualEntry = useCallback(() => {
+    router.push('/add-account/manual');
+  }, []);
+
+  const handleRetryCamera = useCallback(() => {
+    setCameraError(null);
+    setCameraKey(currentKey => currentKey + 1);
+  }, []);
 
   const handleBarcodeScanned = useCallback((result: BarcodeScanningResult) => {
     if (hasNavigatedRef.current) {
@@ -97,17 +127,26 @@ export function ScannerView() {
     return (
       <CenteredState
         action={
-          permission.canAskAgain ? (
-            <Button onPress={handleRetryPermission}>
-              <Text>Try Again</Text>
+          <View className="gap-3">
+            {permission.canAskAgain ? (
+              <Button onPress={handleRetryPermission}>
+                <Text>Try Again</Text>
+              </Button>
+            ) : (
+              <Button onPress={handleOpenSettings}>
+                <Text>Open Settings</Text>
+              </Button>
+            )}
+            <Button onPress={handleManualEntry} variant="outline">
+              <Text>Enter Setup Key Manually</Text>
             </Button>
-          ) : (
-            <Button onPress={handleRetryPermission}>
-              <Text>Open Settings</Text>
-            </Button>
-          )
+          </View>
         }
-        description="Camera access is needed to scan authenticator QR codes."
+        description={
+          permission.canAskAgain
+            ? 'Camera access is needed to scan authenticator QR codes.'
+            : 'Camera access is turned off. Open Settings to enable it, or enter the setup key manually.'
+        }
         title="Camera permission needed"
       />
     );
@@ -118,6 +157,7 @@ export function ScannerView() {
       {isFocused ? (
         <>
           <CameraView
+            key={cameraKey}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
             facing="back"
             onMountError={({ message }) => {
@@ -134,6 +174,8 @@ export function ScannerView() {
         error={error}
         cameraError={cameraError}
         onLayout={handleFooterLayout}
+        onManualEntry={handleManualEntry}
+        onRetryCamera={handleRetryCamera}
         onRetryScan={() => {
           setError(null);
         }}
@@ -158,12 +200,16 @@ function ScannerFooter({
   error,
   cameraError,
   onLayout,
-  onRetryScan
+  onRetryScan,
+  onRetryCamera,
+  onManualEntry
 }: {
   error: string | null;
   cameraError: string | null;
   onLayout: (event: LayoutChangeEvent) => void;
   onRetryScan: () => void;
+  onRetryCamera: () => void;
+  onManualEntry: () => void;
 }) {
   const handleRetryScan = useCallback(() => {
     onRetryScan();
@@ -192,10 +238,16 @@ function ScannerFooter({
           </View>
         ) : null}
         {cameraError != null ? (
-          <View className="bg-card rounded-lg px-4 py-4">
+          <View className="bg-card gap-3 rounded-lg px-4 py-4">
             <Text className="text-destructive text-center text-base font-semibold">
               {cameraError}
             </Text>
+            <Button onPress={onRetryCamera}>
+              <Text>Retry Camera</Text>
+            </Button>
+            <Button onPress={onManualEntry} variant="outline">
+              <Text>Enter Setup Key Manually</Text>
+            </Button>
           </View>
         ) : null}
       </View>
