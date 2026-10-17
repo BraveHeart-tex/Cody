@@ -8,7 +8,7 @@ import {
 } from '@/features/totp/store/accounts-store';
 import type { DamagedAccount } from '@/features/totp/storage/totp-storage';
 
-export type { AddAccountInput, UpdateAccountInput };
+export type { UpdateAccountInput };
 
 export interface UseAccountsResult {
   accounts: StoredOtpAccount[];

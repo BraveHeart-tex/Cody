@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { authenticateBiometrics } from '@/features/settings/model/biometrics';
 import { useSettingsStore } from '@/features/settings/store/settings-store';
 
-export type ProtectionChangeResult =
+type ProtectionChangeResult =
   { success: true } | { success: false; message: string };
 
 type LockStatus = 'initializing' | 'load-error' | 'unlocked' | 'locked';

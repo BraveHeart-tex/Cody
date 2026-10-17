@@ -30,7 +30,7 @@ export const KEYS = {
   }
 } as const;
 
-export type AccountStorageIssueReason =
+type AccountStorageIssueReason =
   | 'missing-record'
   | 'invalid-record-json'
   | 'invalid-record'
@@ -84,7 +84,7 @@ export async function getStagedAccountSecret(): Promise<string | null> {
   return getItemAsync(KEYS.stagedAccountSecret);
 }
 
-export async function deleteStagedAccountSecret(): Promise<void> {
+async function deleteStagedAccountSecret(): Promise<void> {
   await deleteItemAsync(KEYS.stagedAccountSecret);
 }
 
@@ -186,7 +186,7 @@ export async function recoverAccountWriteJournal(): Promise<void> {
   await applyAccountWriteJournal(journal);
 }
 
-export class MissingStagedAccountSecretError extends Error {
+class MissingStagedAccountSecretError extends Error {
   constructor() {
     super('The pending account secret is not available.');
     this.name = 'MissingStagedAccountSecretError';
@@ -246,9 +246,7 @@ export async function archiveCorruptAccountIndex(
   await AsyncStorage.setItem(key, rawValue);
 }
 
-export async function getAccountRecord(
-  id: string
-): Promise<OtpAccountRecord | null> {
+async function getAccountRecord(id: string): Promise<OtpAccountRecord | null> {
   const value = await AsyncStorage.getItem(KEYS.accountRecord(id));
 
   if (value == null) {

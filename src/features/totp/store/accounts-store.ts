@@ -26,7 +26,7 @@ import {
   type DamagedAccount
 } from '@/features/totp/storage/totp-storage';
 
-export type AccountsLoadStatus = 'idle' | 'loading' | 'loaded' | 'failed';
+type AccountsLoadStatus = 'idle' | 'loading' | 'loaded' | 'failed';
 
 export type AddAccountInput = OtpAccount;
 

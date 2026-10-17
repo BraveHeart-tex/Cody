@@ -13,7 +13,7 @@ import {
   setSettings
 } from '@/features/settings/storage/settings-storage';
 
-export type SettingsLoadStatus = 'idle' | 'loading' | 'loaded' | 'failed';
+type SettingsLoadStatus = 'idle' | 'loading' | 'loaded' | 'failed';
 
 export interface SettingsStoreState {
   error: Error | null;
