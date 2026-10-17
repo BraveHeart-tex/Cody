@@ -125,12 +125,18 @@ export function AccountCardDetails({
   return (
     <CardContent className="gap-4 px-4">
       <View className="gap-2">
-        <Text className="text-muted-foreground text-sm">Passcode</Text>
+        <Text className="text-muted-foreground text-sm">
+          {pendingAction === 'copy'
+            ? 'Copying passcode…'
+            : isCopied
+              ? 'Copied to clipboard'
+              : 'Passcode'}
+        </Text>
         <View className="flex-row items-center gap-2">
           <Text
             adjustsFontSizeToFit
-            className="text-foreground min-w-0 flex-1 text-left font-mono text-3xl"
-            minimumFontScale={0.75}
+            className="text-foreground min-w-0 flex-1 text-left font-mono text-4xl font-semibold"
+            minimumFontScale={0.7}
             numberOfLines={1}
           >
             {code || (isSecretLoading ? 'Loading passcode…' : CODE_PLACEHOLDER)}
@@ -167,6 +173,9 @@ export function AccountCardDetails({
             )}
           </Button>
         </View>
+        {secret != null && !isSecretLoading && code.length === 0 ? (
+          <StatusMessage value="Couldn’t generate a code. Check the account record." />
+        ) : null}
         {hasCopyError || pendingAction === 'retry' ? (
           <View className="flex-row items-center gap-2">
             {hasCopyError ? (

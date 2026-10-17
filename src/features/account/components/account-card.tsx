@@ -75,15 +75,18 @@ export const AccountCard = memo(function AccountCard({
 
   return (
     <Animated.View layout={CARD_LAYOUT_TRANSITION}>
-      <Pressable
-        accessibilityLabel={`${isActive ? 'Close' : 'Open'} ${issuer} account`}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: isActive }}
-        onPress={handlePress}
+      <Card
+        className={`border-border/30 relative gap-3 rounded-lg px-0 py-3 shadow-none ${isActive ? 'border-primary/10' : ''}`}
       >
-        <Card className="relative gap-4 px-0 py-4">
-          <CardHeader className="px-4">
-            <View className="flex-row items-center gap-3">
+        <CardHeader className="px-3">
+          <View className="flex-row items-center gap-2">
+            <Pressable
+              accessibilityLabel={`${isActive ? 'Close' : 'Open'} ${issuer} account`}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: isActive }}
+              className="min-w-0 flex-1 flex-row items-center gap-3"
+              onPress={handlePress}
+            >
               <AccountInitial initial={initial} style={iconStyle} />
               <View className="min-w-0 flex-1 gap-1">
                 <CardTitle
@@ -96,34 +99,32 @@ export const AccountCard = memo(function AccountCard({
                   {account.label}
                 </CardDescription>
               </View>
-              {isActive ? (
-                <AccountActions
-                  account={account}
-                  issuer={issuer}
-                  onDelete={onDelete}
-                  onMove={onMove}
-                />
-              ) : null}
-            </View>
-          </CardHeader>
+            </Pressable>
+            <AccountActions
+              account={account}
+              issuer={issuer}
+              onDelete={onDelete}
+              onMove={onMove}
+            />
+          </View>
+        </CardHeader>
 
-          {isActive ? (
-            <Animated.View
-              entering={DETAILS_ENTERING}
-              exiting={DETAILS_EXITING}
-              layout={CARD_LAYOUT_TRANSITION}
-            >
-              <AccountCardDetails
-                account={account}
-                color={color}
-                issuer={issuer}
-                isSecretLoading={isSecretLoading}
-                period={period}
-              />
-            </Animated.View>
-          ) : null}
-        </Card>
-      </Pressable>
+        {isActive ? (
+          <Animated.View
+            entering={DETAILS_ENTERING}
+            exiting={DETAILS_EXITING}
+            layout={CARD_LAYOUT_TRANSITION}
+          >
+            <AccountCardDetails
+              account={account}
+              color={color}
+              issuer={issuer}
+              isSecretLoading={isSecretLoading}
+              period={period}
+            />
+          </Animated.View>
+        ) : null}
+      </Card>
     </Animated.View>
   );
 }, areAccountCardPropsEqual);

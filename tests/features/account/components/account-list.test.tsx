@@ -283,8 +283,8 @@ describe('AccountList', () => {
       <AccountList />
     );
 
-    expect(getByText('Add your first account')).toBeTruthy();
-    expect(getByText(/Scan an authenticator QR code/)).toBeTruthy();
+    expect(getByText('No accounts yet')).toBeTruthy();
+    expect(getByText(/Add an account to start generating/)).toBeTruthy();
     expect(getByLabelText('Scan QR code')).toBeTruthy();
     expect(getByLabelText('Add manually')).toBeTruthy();
     expect(queryByLabelText('Search accounts')).toBeNull();
@@ -351,12 +351,17 @@ describe('AccountList', () => {
 
   it('shows a search-specific empty state when no accounts match', async () => {
     mockAccounts = [account];
-    const { getByLabelText, queryByText } = await render(<AccountList />);
+    const { getByLabelText, getByText, queryByText } = await render(
+      <AccountList />
+    );
 
     await fireEvent.changeText(getByLabelText('Search accounts'), 'dropbox');
 
     expect(queryByText('No matching accounts')).toBeTruthy();
     expect(queryByText('No accounts yet')).toBeNull();
+    await fireEvent.press(getByText('Clear search'));
+    expect(queryByText('No matching accounts')).toBeNull();
+    expect(queryByText('GitHub')).toBeTruthy();
   });
 
   it('collapses the active account when the search query changes', async () => {
@@ -423,6 +428,26 @@ describe('AccountList', () => {
 
     await waitFor(() => {
       expect(mockStartReadding).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('shows recovery feedback when re-adding accounts fails', async () => {
+    mockError = new CorruptAccountIndexError('{');
+    mockStartReadding.mockRejectedValueOnce(new Error('Archive failed'));
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+    const { getByLabelText, getByText } = await render(<AccountList />);
+
+    await fireEvent.press(getByLabelText('Re-add accounts'));
+
+    const buttons = alertSpy.mock.calls[0]?.[2];
+
+    buttons?.find(button => button.text === 'Continue')?.onPress?.();
+
+    await waitFor(() => {
+      expect(
+        getByText('Could not finish re-adding accounts. Try again.')
+      ).toBeTruthy();
     });
   });
 });

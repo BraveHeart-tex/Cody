@@ -161,8 +161,8 @@ describe('AccountCard', () => {
     jest.restoreAllMocks();
   });
 
-  it('hides passcode, dropdown, progress, and timer while collapsed', async () => {
-    const { getByText, queryByLabelText, queryByText, queryByTestId } =
+  it('hides passcode, progress, and timer while collapsed but keeps actions available', async () => {
+    const { getByLabelText, getByText, queryByText, queryByTestId } =
       await render(
         <AccountCard
           account={account}
@@ -177,7 +177,7 @@ describe('AccountCard', () => {
     expect(queryByText('Passcode 123456')).toBeNull();
     expect(queryByText('18s until refresh')).toBeNull();
     expect(queryByText('Profile')).toBeNull();
-    expect(queryByLabelText('Account actions')).toBeNull();
+    expect(getByLabelText('Account actions')).toBeTruthy();
     expect(queryByTestId('account-card-progress')).toBeNull();
   });
 

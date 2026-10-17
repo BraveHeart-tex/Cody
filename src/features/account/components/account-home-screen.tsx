@@ -1,4 +1,4 @@
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -13,9 +13,16 @@ export function AccountHomeScreen() {
   };
 
   return (
-    <View className="bg-background pt-safe flex-1 px-6">
+    <View className="bg-background pt-safe pb-safe flex-1 px-6">
       <View className="flex-row items-center justify-between gap-6 pt-6 pb-6">
-        <Text variant="h1">Cody</Text>
+        <View className="flex-row items-center gap-3">
+          <Image
+            accessibilityLabel="Cody app icon"
+            className="size-11 rounded-xl"
+            source={require('../../../../assets/images/icon.png')}
+          />
+          <Text variant="h1">Cody</Text>
+        </View>
         <Button
           accessibilityLabel="Open settings"
           onPress={handleSettingsPress}

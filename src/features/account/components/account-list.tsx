@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { StateCard } from '@/components/ui/state-card';
 import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { AccountCard } from '@/features/account/components/account-card';
@@ -15,9 +14,12 @@ import {
 } from '@/features/totp/storage/totp-storage';
 import { router } from 'expo-router';
 import {
+  DatabaseIcon,
   KeyboardIcon,
   PlusIcon,
   QrCodeIcon,
+  SearchIcon,
+  ShieldAlertIcon,
   ShieldCheckIcon
 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
@@ -43,7 +45,11 @@ export function AccountList() {
   } = useAccounts();
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [operationError, setOperationError] = useState<string | null>(null);
+  const [operationFeedback, setOperationFeedback] = useState<{
+    message: string;
+    variant: 'error' | 'success';
+  } | null>(null);
+  const [readdError, setReaddError] = useState<string | null>(null);
   const listItems = useMemo(
     () => buildAccountListItems(accountIds, accounts, damagedAccounts),
     [accountIds, accounts, damagedAccounts]
@@ -82,18 +88,27 @@ export function AccountList() {
 
   const handleAccountDelete = useCallback(
     async (accountId: string) => {
-      setOperationError(null);
+      const deletedIssuer =
+        accounts.find(account => account.id === accountId)?.issuer ?? 'Account';
+
+      setOperationFeedback(null);
 
       try {
         await deleteAccount(accountId);
         setActiveAccountId(null);
+        setOperationFeedback({
+          message: `${deletedIssuer} deleted.`,
+          variant: 'success'
+        });
       } catch {
-        setOperationError(
-          'Could not delete this account. It remains saved; try again.'
-        );
+        setOperationFeedback({
+          message:
+            'Could not delete this account. It remains saved; try again.',
+          variant: 'error'
+        });
       }
     },
-    [deleteAccount]
+    [accounts, deleteAccount]
   );
 
   const handleReaddAccounts = useCallback(() => {
@@ -105,7 +120,10 @@ export function AccountList() {
         {
           text: 'Continue',
           onPress: () => {
-            void startReaddingAccounts().catch(() => undefined);
+            setReaddError(null);
+            void startReaddingAccounts().catch(() => {
+              setReaddError('Could not finish re-adding accounts. Try again.');
+            });
           }
         }
       ]
@@ -145,78 +163,76 @@ export function AccountList() {
   );
 
   if (isLoading) {
-    return <AccountListSkeleton showHeader />;
+    return <AccountListSkeleton />;
   }
 
   if (error != null) {
     return (
-      <View className="gap-3">
-        <StateCard
-          description={
-            error instanceof CorruptAccountIndexError
-              ? 'The saved account list is damaged. Retry, or start a new list and add accounts again with their original setup keys or QR codes.'
-              : 'Cody could not read the saved accounts. Retry to try again.'
-          }
-          title="Could not load saved accounts"
-        />
-        <Button
-          accessibilityLabel="Retry loading saved accounts"
-          onPress={() => void retryLoad().catch(() => undefined)}
-          variant="outline"
-        >
-          <Text>Retry</Text>
-        </Button>
-        {error instanceof CorruptAccountIndexError ? (
-          <Button
-            accessibilityLabel="Re-add accounts"
-            onPress={handleReaddAccounts}
-            variant="destructive"
-          >
-            <Text>Re-add accounts</Text>
-          </Button>
-        ) : null}
-      </View>
+      <AccountListError
+        isCorrupt={error instanceof CorruptAccountIndexError}
+        onReadd={handleReaddAccounts}
+        onRetry={() => void retryLoad().catch(() => undefined)}
+        readdError={readdError}
+      />
     );
   }
 
   return (
-    <FlatList
-      className="flex-1"
-      contentContainerClassName={
-        filteredItems.length === 0 ? 'flex-grow gap-3 pb-safe' : 'gap-3 pb-safe'
-      }
-      data={filteredItems}
-      initialNumToRender={ACCOUNT_LIST_BATCH_SIZE}
-      keyExtractor={keyExtractor}
-      ListFooterComponent={filteredItems.length > 0 ? ListFooterSpacer : null}
-      ListHeaderComponent={
-        <View className="gap-3">
-          {operationError != null ? (
-            <StatusMessage value={operationError} />
-          ) : null}
-          <AccountListHeaderSection
-            accountCount={accountIds.length}
-            onSearchChange={handleSearchChange}
-            onAddPress={handleAddPress}
-            searchQuery={searchQuery}
-          />
-        </View>
-      }
-      ListEmptyComponent={
-        accountIds.length === 0 ? (
-          <AccountListEmpty
-            onManualPress={handleManualPress}
-            onScanPress={handleScanPress}
-          />
-        ) : (
-          AccountListNoSearchResults
-        )
-      }
-      maxToRenderPerBatch={ACCOUNT_LIST_BATCH_SIZE}
-      renderItem={renderItem}
-      showsVerticalScrollIndicator={false}
-      windowSize={ACCOUNT_LIST_WINDOW_SIZE}
-    />
+    <View className="flex-1">
+      <FlatList
+        className="-mx-1 flex-1"
+        contentContainerClassName={
+          filteredItems.length === 0
+            ? 'flex-grow gap-2 px-1 pb-24'
+            : 'gap-2 px-1 pb-24'
+        }
+        data={filteredItems}
+        initialNumToRender={ACCOUNT_LIST_BATCH_SIZE}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={
+          <View className="gap-3">
+            {operationFeedback != null ? (
+              <StatusMessage
+                value={operationFeedback.message}
+                variant={operationFeedback.variant}
+              />
+            ) : null}
+            <AccountListHeaderSection
+              accountCount={accountIds.length}
+              onClearSearch={() => handleSearchChange('')}
+              onSearchChange={handleSearchChange}
+              searchQuery={searchQuery}
+            />
+          </View>
+        }
+        ListEmptyComponent={
+          accountIds.length === 0 ? (
+            <AccountListEmpty
+              onManualPress={handleManualPress}
+              onScanPress={handleScanPress}
+            />
+          ) : (
+            <AccountListNoSearchResults
+              onClearSearch={() => handleSearchChange('')}
+            />
+          )
+        }
+        maxToRenderPerBatch={ACCOUNT_LIST_BATCH_SIZE}
+        renderItem={renderItem}
+        showsVerticalScrollIndicator={false}
+        windowSize={ACCOUNT_LIST_WINDOW_SIZE}
+      />
+      {accountIds.length > 0 ? (
+        <Button
+          accessibilityLabel="Add account"
+          className="absolute right-0 bottom-4 z-10 h-14 w-14 rounded-2xl shadow-md"
+          onPress={handleAddPress}
+          size="icon"
+        >
+          <Icon as={PlusIcon} size={26} />
+        </Button>
+      ) : null}
+    </View>
   );
 }
 
@@ -280,37 +296,11 @@ function filterAccountListItems(
   });
 }
 
-interface AccountListHeaderProps {
+interface AccountListHeaderSectionProps {
   accountCount: number;
-  onAddPress: () => void;
-}
-
-interface AccountListHeaderSectionProps extends AccountListHeaderProps {
+  onClearSearch: () => void;
   onSearchChange: (value: string) => void;
   searchQuery: string;
-}
-
-function AccountListHeader({
-  accountCount,
-  onAddPress
-}: AccountListHeaderProps) {
-  const title = accountCount > 0 ? `Accounts (${accountCount})` : 'Accounts';
-
-  return (
-    <View className="flex-row items-center justify-between gap-4">
-      <Text variant="h3">{title}</Text>
-      <Button
-        accessibilityLabel="Add account"
-        onPress={onAddPress}
-        size="sm"
-        variant="ghost"
-        className="text-base"
-      >
-        <Icon as={PlusIcon} />
-        <Text>Add</Text>
-      </Button>
-    </View>
-  );
 }
 
 function AccountListHeaderSection(props: AccountListHeaderSectionProps) {
@@ -319,21 +309,14 @@ function AccountListHeaderSection(props: AccountListHeaderSectionProps) {
   }
 
   return (
-    <View className="gap-5">
+    <View>
       <AccountSearchInput
+        onClear={props.onClearSearch}
         onChangeText={props.onSearchChange}
         value={props.searchQuery}
       />
-      <AccountListHeader
-        accountCount={props.accountCount}
-        onAddPress={props.onAddPress}
-      />
     </View>
   );
-}
-
-function ListFooterSpacer() {
-  return <View className="h-8" />;
 }
 
 interface AccountListEmptyProps {
@@ -346,30 +329,27 @@ function AccountListEmpty({
   onScanPress
 }: AccountListEmptyProps) {
   return (
-    <View className="flex-1 items-center justify-center px-2 py-10">
-      <View className="w-full max-w-sm items-center gap-6">
-        <View className="border-border bg-card size-16 items-center justify-center rounded-full border">
-          <Icon as={ShieldCheckIcon} className="text-primary" size={28} />
-        </View>
-
-        <View className="gap-2">
+    <View className="min-h-[420px] flex-1 items-center justify-center px-2 py-10">
+      <View className="w-full max-w-sm items-center gap-5">
+        <AccountStateIllustration>
+          <Icon as={ShieldCheckIcon} className="text-primary" size={36} />
+        </AccountStateIllustration>
+        <View className="items-center gap-2">
           <Text className="text-foreground text-center text-2xl font-semibold">
-            Add your first account
+            No accounts yet
           </Text>
           <Text className="text-muted-foreground text-center text-base leading-6">
-            Scan an authenticator QR code or enter a setup key to start saving
-            codes in Cody.
+            Add an account to start generating one-time codes in Cody.
           </Text>
         </View>
-
-        <View className="w-full gap-3">
+        <View className="w-full gap-2">
           <Button
             accessibilityLabel="Scan QR code"
             onPress={onScanPress}
             size="lg"
           >
             <Icon as={QrCodeIcon} />
-            <Text>Scan QR Code</Text>
+            <Text>Scan QR code</Text>
           </Button>
           <Button
             accessibilityLabel="Add manually"
@@ -378,7 +358,7 @@ function AccountListEmpty({
             variant="outline"
           >
             <Icon as={KeyboardIcon} />
-            <Text>Add Manually</Text>
+            <Text>Add manually</Text>
           </Button>
         </View>
       </View>
@@ -386,13 +366,110 @@ function AccountListEmpty({
   );
 }
 
-function AccountListNoSearchResults() {
+function AccountListNoSearchResults({
+  onClearSearch
+}: {
+  onClearSearch: () => void;
+}) {
   return (
-    <View className="flex-1 justify-start">
-      <StateCard
-        description="Try a different issuer or account label."
-        title="No matching accounts"
-      />
+    <View className="flex-1 items-center justify-center gap-4 px-2 py-12">
+      <AccountStateIllustration size="compact">
+        <Icon as={SearchIcon} className="text-primary" size={32} />
+      </AccountStateIllustration>
+      <View className="items-center gap-2">
+        <Text className="text-foreground text-center text-xl font-semibold">
+          No matching accounts
+        </Text>
+        <Text className="text-muted-foreground text-center text-base leading-6">
+          Try a different issuer or account label.
+        </Text>
+      </View>
+      <Button className="min-w-40" onPress={onClearSearch} variant="outline">
+        <Text>Clear search</Text>
+      </Button>
+    </View>
+  );
+}
+
+function AccountListError({
+  isCorrupt,
+  onReadd,
+  onRetry,
+  readdError
+}: {
+  isCorrupt: boolean;
+  onReadd: () => void;
+  onRetry: () => void;
+  readdError: string | null;
+}) {
+  return (
+    <View className="flex-1 items-start justify-center px-1 py-6">
+      <View className="border-border bg-card w-full items-center gap-5 rounded-xl border px-4 py-6">
+        <AccountStateIllustration size="error">
+          <Icon
+            as={isCorrupt ? ShieldAlertIcon : DatabaseIcon}
+            className="text-primary"
+            size={34}
+          />
+        </AccountStateIllustration>
+        <View className="items-center gap-2">
+          <Text className="text-foreground text-center text-2xl font-semibold">
+            {isCorrupt
+              ? 'Account list needs recovery'
+              : 'Couldn’t load accounts'}
+          </Text>
+          <Text className="text-muted-foreground text-center text-base leading-6">
+            {isCorrupt
+              ? 'Cody couldn’t read the saved account list. Retry first. Re-adding may require your original setup keys or QR codes.'
+              : 'Account storage is temporarily unavailable. Retry to try again.'}
+          </Text>
+        </View>
+        {readdError != null ? <StatusMessage value={readdError} /> : null}
+        <View className="w-full gap-2">
+          <Button
+            accessibilityLabel="Retry loading saved accounts"
+            onPress={onRetry}
+            size="lg"
+          >
+            <Text>Retry loading</Text>
+          </Button>
+          {isCorrupt ? (
+            <Button
+              accessibilityLabel="Re-add accounts"
+              onPress={onReadd}
+              size="lg"
+              variant="outline"
+            >
+              <Text>Re-add accounts</Text>
+            </Button>
+          ) : null}
+        </View>
+        <Text className="text-muted-foreground text-center text-sm leading-5">
+          {isCorrupt
+            ? 'Keep the original QR codes or setup keys available in case you need to add accounts again.'
+            : 'Retrying will not change your saved accounts.'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function AccountStateIllustration({
+  children,
+  size = 'default'
+}: {
+  children: React.ReactNode;
+  size?: 'default' | 'compact' | 'error';
+}) {
+  return (
+    <View
+      className={`bg-accent/35 items-center justify-center rounded-full ${size === 'error' ? 'size-28' : size === 'compact' ? 'size-32' : 'size-36'}`}
+    >
+      <View
+        className={`bg-accent items-center justify-center rounded-full ${size === 'default' ? 'size-24' : size === 'compact' ? 'size-20' : 'size-18'}`}
+      >
+        {children}
+      </View>
     </View>
   );
 }

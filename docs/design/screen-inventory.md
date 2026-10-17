@@ -6,7 +6,7 @@ Discovery checklist for the Proton Authenticator-inspired redesign. Status descr
 
 | Interface              | Entry / purpose                                                     | Main states found                                                                                             | Status                                      | Priority |
 | ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------- |
-| Home and account list  | `/` - view, search, copy, manage OTP accounts                       | Loading, first-use empty, populated, search/no-results, storage failure, damaged records, expanded card       | Implemented with gaps                       | P0       |
+| Home and account list  | `/` - view, search, copy, manage OTP accounts                       | Loading, first-use empty, populated, search/no-results, storage failure, damaged records, expanded card       | Implemented; Android visual review partial  | P0       |
 | Add account options    | `/add-account` - choose QR scan or manual entry                     | Default choice; navigation                                                                                    | Implemented                                 | P1       |
 | Manual account form    | `/add-account/manual` - enter TOTP setup details                    | Loading, validation, invalid/duplicate data, masked/revealed secret, saving, storage/save error, success      | Implemented with gaps                       | P1       |
 | QR scanner             | `/scan` - scan authenticator QR                                     | Permission loading/granted/denied, Settings recovery, manual entry, invalid QR, camera retry, successful scan | Implemented; device verification pending    | P0       |
@@ -26,17 +26,22 @@ The seven route screens are Expo Router routes. Account cards, settings sections
 
 Paths: [home route](/Users/bora/projects/cody/src/app/index.tsx), [home screen](/Users/bora/projects/cody/src/features/account/components/account-home-screen.tsx), [account list](/Users/bora/projects/cody/src/features/account/components/account-list.tsx), [account card](/Users/bora/projects/cody/src/features/account/components/account-card.tsx), [OTP details](/Users/bora/projects/cody/src/features/account/components/account-card-details.tsx).
 
-- [x] **Initializing** - account storage loading renders the list skeleton. Implemented in `account-list.tsx:141-143`; loading component in `account-list-skeleton.tsx`.
-- [x] **First use** - no saved accounts shows scan and manual-add actions (`account-list.tsx:199-204,333-380`). These route directly into the core add flows.
-- [x] **Populated** - issuer/label rows in stored order; selecting a row expands OTP, timer and actions (`account-list.tsx:176-213`; `account-card.tsx:62-116`). OTP generation failure has a placeholder and disables copy (`account-card-details.tsx:34-52,81-124`).
-- [x] **Search** - case-insensitive issuer or label filtering; query change collapses expanded row; no-match message suggests another query (`account-list.tsx:70-78,250-275,310-327,383-392`). Search only appears when account IDs exist.
-- [x] **Damaged record** - retained damaged rows have retry and remove actions (`account-list.tsx:113-129`; `damaged-account-card.tsx:20-96`).
-- [x] **Read failure** - generic retry. Corrupt index gives a re-add path with warning and confirmation (`account-list.tsx:145-173,97-111`).
-- [x] **Delete** - native confirm alert; deletion error leaves account saved and displays recovery message (`account-actions.tsx:28-44`; `account-list.tsx:81-95`).
-- [ ] **Re-add failure** - rejection from `startReaddingAccounts` is swallowed, leaving no visible outcome (`account-list.tsx:97-111`).
-- [ ] **Copy failure** - clipboard exception is not surfaced; success feedback is covered in source but failure recovery is absent (`account-card-details.tsx:66-79`).
-- [ ] **Dead menu items** - Rename and Customize are displayed without handlers; Move/Delete are the actionable operations (`account-actions.tsx:57-75`).
-- [ ] **Design review** - test coverage exists for empty, search, no-match and loading retry (`tests/features/account/components/account-list.test.tsx:291-408`), but no screenshot/device verification. Prioritize OTP contrast, code width/readability, countdown, expansion, long issuer/label and damaged-row hierarchy.
+- [x] **Initializing** - account storage loading renders the quiet six-row skeleton (`account-list.tsx:186-188`; `account-list-skeleton.tsx`).
+- [x] **First use** - no saved accounts shows scan and manual-add actions (`account-list.tsx:388-427`). These route directly into the core add flows.
+- [x] **Populated** - issuer/label rows in stored order; selecting a row expands OTP, timer and actions (`account-card.tsx:76-130`). OTP generation failure shows an unavailable code, warning and disabled copy (`account-card-details.tsx:50-68,135-178`).
+- [x] **Search** - case-insensitive issuer or label filtering; query change collapses expanded row; no-match message suggests another query (`account-list.tsx:100-104,333-355,430-452`). Search only appears when account IDs exist.
+- [x] **Damaged record** - retained damaged rows have retry and remove actions (`account-list.tsx:145-161`; `damaged-account-card.tsx:14-109`).
+- [x] **Read failure** - generic retry. Corrupt index gives a re-add path with warning and confirmation (`account-list.tsx:190-198,135-152,455-513`).
+- [x] **Delete** - native confirm alert; deletion error leaves account saved and both outcomes display accessible inline feedback (`account-actions.tsx:27-63`; `account-list.tsx:111-133,211-218`).
+- [x] **Re-add failure** - rejection from `startReaddingAccounts` displays recovery feedback (`account-list.tsx:135-152,455-513`; covered by `account-list.test.tsx`).
+- [x] **Copy feedback** - copy success/failure and retry feedback are handled in the OTP details component (`account-card-details.tsx:82-123,125-195`); Android clipboard preview confirmed the copy action.
+- [x] **Account actions** - collapsed and expanded cards expose the action menu; only supported Move/Delete actions are shown (`account-card.tsx:103-109`, `account-actions.tsx`).
+- [x] **State visual treatment** - first-use, no-results, loading skeletons, storage failure, corrupt-index recovery and damaged records use the lab's hierarchy and focused actions (`account-list.tsx`, `account-list-skeleton.tsx`, `damaged-account-card.tsx`).
+- [x] **Search clear** - a trailing clear control appears for matching and non-matching queries (`account-search-input.tsx`).
+- [x] **Delete feedback** - successful deletion and failure both produce accessible inline feedback (`account-list.tsx`).
+- [x] **Design review** - Android emulator screenshots verified the Cody header, search-first home, quiet collapsed card with action menu, and expanded OTP with linear countdown and icon copy control. Synthetic data only.
+- [ ] **Latest refinement visual check** - quiet cards, loading skeleton, OTP generation failure, search clear, damaged-row hierarchy, framed storage error and inline delete feedback still need a fresh screenshot after the latest edits.
+- [ ] **Remaining device review** - first-use, loading and recovery states; iOS layout; long issuer/label; damaged-row hierarchy; and native alerts remain unverified.
 
 ### Add account options - P1
 
@@ -142,6 +147,7 @@ Paths: mounted around all routes in [root layout](/Users/bora/projects/cody/src/
 ## Verification record
 
 - **Code and tests inspected:** routes under `src/app`, feature components under `src/features`, shared UI under `src/components/ui`, related tests under `tests/features`.
-- **Device screenshots:** none. `agent-device open com.borakaraca94.cody --platform android --foreground` failed twice with daemon startup error. Per the tool hint, no manual daemon/lock reset was attempted.
-- **Platform differences:** source-level only. Camera permissions, native alerts, biometric prompts, Android Back behavior and drag gestures were not visually checked. No real OTP secrets were accessed or reported.
-- **Unverified:** live Android rendering and interactions; iOS appearance and native behaviors; scanner Settings handoff and camera retry on device; biometric screen-reader UX; manual keyboard/safe-area behavior; sortable drag and accessible reorder.
+- **Device screenshots:** Android emulator, populated/collapsed and expanded synthetic account states. Cody app icon/header, Search, collapsed actions, OTP sizing, linear countdown, icon copy control, and clipboard preview checked with `agent-device`.
+- **Latest device pass:** blocked because `agent-device` could not confirm retirement of its existing daemon; its state was retained. Latest visual refinements are unverified on-device.
+- **Platform differences:** Android home/card visual review completed. iOS appearance and native behaviors, scanner permissions, biometric prompts, Android Back behavior and drag gestures remain unverified. No real OTP secrets were accessed or reported.
+- **Unverified:** first-use, loading and recovery-state screenshots; long issuer/label and damaged-row hierarchy on device; iOS appearance and native behaviors; scanner Settings handoff and camera retry; biometric screen-reader UX; manual keyboard/safe-area behavior; sortable drag and accessible reorder.
