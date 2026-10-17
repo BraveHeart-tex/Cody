@@ -4,19 +4,19 @@ Discovery checklist for the Proton Authenticator-inspired redesign. Status descr
 
 ## Screen overview
 
-| Interface              | Entry / purpose                                                     | Main states found                                                                                        | Status                                      | Priority |
-| ---------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------- |
-| Home and account list  | `/` - view, search, copy, manage OTP accounts                       | Loading, first-use empty, populated, search/no-results, storage failure, damaged records, expanded card  | Implemented with gaps                       | P0       |
-| Add account options    | `/add-account` - choose QR scan or manual entry                     | Default choice; navigation                                                                               | Implemented                                 | P1       |
-| Manual account form    | `/add-account/manual` - enter TOTP setup details                    | Loading, validation, invalid/duplicate data, masked/revealed secret, saving, storage/save error, success | Implemented with gaps                       | P1       |
-| QR scanner             | `/scan` - scan authenticator QR                                     | Permission loading/granted/denied, invalid QR, camera failure, successful scan                           | Partial                                     | P0       |
-| Review scanned account | `/account-confirm?draftId=...` - verify/edit scanned label and save | Expired draft, invalid/duplicate, validation, storage/save error, saving, success, cancel                | Implemented with gaps                       | P1       |
-| Move accounts          | `/move-accounts` - reorder account list                             | Loading, empty, populated/dragging, load/save failure, done                                              | Partial                                     | P1       |
-| Settings               | `/settings` - security, lock timeout, theme                         | Loading, biometrics on/off/auth, unavailable/auth failure, storage failure, preference changes           | Implemented with gaps                       | P1       |
-| App lock gate          | Global overlay - protect app on launch/resume                       | Initializing, locked, authenticating, unlocked, load error/retry, auth failures                          | Implemented with gaps                       | P0       |
-| Account action menu    | Expanded account card dropdown                                      | Move, delete, rename, customize choices                                                                  | Partial                                     | P1       |
-| Delete confirmation    | Native alert from account actions                                   | Confirm/cancel, deletion failure                                                                         | Implemented; platform appearance unverified | P1       |
-| Re-add confirmation    | Native alert for corrupt account index                              | Confirm/cancel, archive/reinitialize                                                                     | Partial                                     | P1       |
+| Interface              | Entry / purpose                                                     | Main states found                                                                                             | Status                                      | Priority |
+| ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------- |
+| Home and account list  | `/` - view, search, copy, manage OTP accounts                       | Loading, first-use empty, populated, search/no-results, storage failure, damaged records, expanded card       | Implemented with gaps                       | P0       |
+| Add account options    | `/add-account` - choose QR scan or manual entry                     | Default choice; navigation                                                                                    | Implemented                                 | P1       |
+| Manual account form    | `/add-account/manual` - enter TOTP setup details                    | Loading, validation, invalid/duplicate data, masked/revealed secret, saving, storage/save error, success      | Implemented with gaps                       | P1       |
+| QR scanner             | `/scan` - scan authenticator QR                                     | Permission loading/granted/denied, Settings recovery, manual entry, invalid QR, camera retry, successful scan | Implemented; device verification pending    | P0       |
+| Review scanned account | `/account-confirm?draftId=...` - verify/edit scanned label and save | Expired draft, invalid/duplicate, validation, storage/save error, saving, success, cancel                     | Implemented with gaps                       | P1       |
+| Move accounts          | `/move-accounts` - reorder account list                             | Loading, empty, populated/dragging, load/save failure, done                                                   | Partial                                     | P1       |
+| Settings               | `/settings` - security, lock timeout, theme                         | Loading, biometrics on/off/auth, unavailable/auth failure, storage failure, preference changes                | Implemented with gaps                       | P1       |
+| App lock gate          | Global overlay - protect app on launch/resume                       | Initializing, locked, authenticating, unlocked, load error/retry, auth failures                               | Implemented with gaps                       | P0       |
+| Account action menu    | Expanded account card dropdown                                      | Move, delete, rename, customize choices                                                                       | Partial                                     | P1       |
+| Delete confirmation    | Native alert from account actions                                   | Confirm/cancel, deletion failure                                                                              | Implemented; platform appearance unverified | P1       |
+| Re-add confirmation    | Native alert for corrupt account index                              | Confirm/cancel, archive/reinitialize                                                                          | Partial                                     | P1       |
 
 The seven route screens are Expo Router routes. Account cards, settings sections, empty/error states and the lock gate are component states or overlays, not separate routes. No account sign-in, cloud account, import/export, backup, or onboarding screens were found in the inspected routes/components.
 
@@ -62,13 +62,13 @@ Paths: [route](/Users/bora/projects/cody/src/app/add-account/manual.tsx), [form]
 
 Paths: [route](/Users/bora/projects/cody/src/app/scan.tsx), [scanner](/Users/bora/projects/cody/src/features/scanner/components/scanner-view.tsx), [frame](/Users/bora/projects/cody/src/features/scanner/components/scanner-frame.tsx), [URI parser](/Users/bora/projects/cody/src/features/totp/model/parse-otpauth-uri.ts).
 
-- [x] **Permission initializing** - explains camera permission preparation (`scanner-view.tsx:87-94`).
-- [x] **Denied/retry** - explains camera need and offers Try Again when permission can be asked again (`:96-112`).
-- [ ] **Permanent denial recovery** - button label changes to Open Settings, but handler still calls `requestPermission`; no in-app settings deep link is evident (`:44-46,96-108`). Verify platform behavior.
-- [x] **Valid QR** - parse otpauth data, haptic success, create in-memory draft, navigate to review (`:48-77`).
-- [x] **Invalid/non-QR** - parser or type error pauses barcode callback and offers Scan Again (`:48-65,126,157-193`).
-- [ ] **Camera mount failure** - message is shown but there is no retry action or recovery transition (`:120-125,194-199`).
-- [ ] **Device verification** - no scanner tests or screenshots found. Camera permission prompts and settings recovery are OS-specific; Android and iOS behavior remain unverified.
+- [x] **Permission initializing** - explains camera permission preparation (`scanner-view.tsx:117-124`).
+- [x] **Denied/retry** - explains camera need and offers Try Again when permission can be asked again; permanently denied access offers Open Settings and manual entry (`scanner-view.tsx:126-152`). Permission is refreshed when the app returns to the foreground (`:51-59`).
+- [x] **Valid QR** - parse otpauth data, haptic success, create in-memory draft, navigate to review (`:78-107`).
+- [x] **Invalid/non-QR** - parser or type error pauses barcode callback and offers Scan Again (`:78-95,166,230-239`).
+- [x] **Camera mount failure** - shows the camera error with Retry Camera, which remounts the camera, and a manual-entry fallback (`scanner-view.tsx:73-76,159-168,240-252`).
+- [x] **Coverage** - scanner tests cover first-time permission, retryable and permanent denial, foreground permission refresh, and camera mount recovery (`tests/features/scanner/components/scanner-view.test.tsx:110-195`).
+- [ ] **Device verification** - camera permission prompts, Settings handoff and camera remount behavior remain OS-specific and have not been verified on Android or iOS devices.
 
 ### Review scanned account - P1
 
@@ -133,7 +133,7 @@ Paths: mounted around all routes in [root layout](/Users/bora/projects/cody/src/
 ## Redesign roadmap
 
 1. **P0 - Home/account list and app lock:** highest frequency and security boundary. Review first-use, populated OTP, expanded/copy, damaged data, load/corrupt-index error, search and locked/unlock states.
-2. **P0 - Scanner permission and camera failure:** unblock primary enrollment path; resolve denied/permanently denied and camera mount failure, then verify scan-to-review transition.
+2. **P0 - Scanner permission and camera failure:** unblock primary enrollment path; verify denied/permanently denied recovery, camera retry, manual-entry fallback, and scan-to-review transition on Android and iOS.
 3. **P1 - Add paths:** add-choice, manual form and scanned review; cover secret privacy, validation, duplicate detection, failure recovery and success/navigation.
 4. **P1 - Move and account actions:** make reorder recoverable and accessible; reconcile visible Rename/Customize options with actual behavior; review delete/re-add confirmations.
 5. **P1 - Settings/security:** unify biometric availability, auth failures, persistence errors and timeout dependency; verify native prompts on both platforms.
@@ -144,4 +144,4 @@ Paths: mounted around all routes in [root layout](/Users/bora/projects/cody/src/
 - **Code and tests inspected:** routes under `src/app`, feature components under `src/features`, shared UI under `src/components/ui`, related tests under `tests/features`.
 - **Device screenshots:** none. `agent-device open com.borakaraca94.cody --platform android --foreground` failed twice with daemon startup error. Per the tool hint, no manual daemon/lock reset was attempted.
 - **Platform differences:** source-level only. Camera permissions, native alerts, biometric prompts, Android Back behavior and drag gestures were not visually checked. No real OTP secrets were accessed or reported.
-- **Unverified:** live Android rendering and interactions; iOS appearance and native behaviors; camera-denied settings recovery; camera mount failure recovery; biometric screen-reader UX; manual keyboard/safe-area behavior; sortable drag and accessible reorder.
+- **Unverified:** live Android rendering and interactions; iOS appearance and native behaviors; scanner Settings handoff and camera retry on device; biometric screen-reader UX; manual keyboard/safe-area behavior; sortable drag and accessible reorder.

@@ -21,8 +21,11 @@ import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
 
 const mockAddAccount = jest.fn<UseAccountsResult['addAccount']>();
+const mockRetryLoad = jest.fn<UseAccountsResult['retryLoad']>();
 let mockAccounts: UseAccountsResult['accounts'] = [];
 let mockDraftId = 'qr-draft-id';
+let mockError: Error | null = null;
+let mockIsLoading = false;
 
 const scannedDraft: TotpDraft = {
   issuer: 'GitHub',
@@ -94,9 +97,9 @@ jest.mock('@/features/totp/hooks/use-accounts', () => ({
     damagedAccounts: [],
     addAccount: mockAddAccount,
     deleteAccount: jest.fn<UseAccountsResult['deleteAccount']>(),
-    error: null,
-    isLoading: false,
-    retryLoad: jest.fn<UseAccountsResult['retryLoad']>(),
+    error: mockError,
+    isLoading: mockIsLoading,
+    retryLoad: mockRetryLoad,
     retryAccount: jest.fn<UseAccountsResult['retryAccount']>(),
     removeDamagedAccount: jest.fn<UseAccountsResult['removeDamagedAccount']>(),
     startReaddingAccounts:
@@ -120,6 +123,9 @@ describe('AccountConfirmScreen', () => {
     mockAccounts = [];
     mockDraftId = 'qr-draft-id';
     mockAddAccount.mockReset();
+    mockRetryLoad.mockReset();
+    mockError = null;
+    mockIsLoading = false;
     mockDeleteScannerDraft.mockReset();
     mockGetScannerDraft.mockReset();
     mockGetScannerDraft.mockReturnValue(scannedDraft);
@@ -243,5 +249,40 @@ describe('AccountConfirmScreen', () => {
     await fireEvent.press(getByText('Cancel'));
 
     expect(router.back).toHaveBeenCalled();
+  });
+
+  it('retries a failed storage load and preserves the scanned account draft', async () => {
+    mockError = new Error('Storage unavailable');
+    mockRetryLoad.mockImplementation(async () => {
+      mockError = null;
+    });
+    mockAddAccount.mockResolvedValue(undefined);
+
+    const { getByLabelText, getByText, queryByLabelText, rerender } =
+      await render(<AccountConfirmScreen />);
+
+    await fireEvent.changeText(
+      getByLabelText('Account label'),
+      'edited@example.com'
+    );
+    expect(
+      getByText('Cody could not read the saved accounts. Retry to try again.')
+    ).toBeTruthy();
+
+    await fireEvent.press(getByLabelText('Retry loading saved accounts'));
+    rerender(<AccountConfirmScreen />);
+
+    await waitFor(() => {
+      expect(mockRetryLoad).toHaveBeenCalledTimes(1);
+      expect(queryByLabelText('Retry loading saved accounts')).toBeNull();
+    });
+    expect(getByLabelText('Account label').props.value).toBe(
+      'edited@example.com'
+    );
+    expect(getByText('GitHub')).toBeTruthy();
+
+    await fireEvent.press(getByText('Save Account'));
+    await waitFor(() => expect(mockAddAccount).toHaveBeenCalledTimes(1));
+    expect(mockDeleteScannerDraft).toHaveBeenCalledWith('qr-draft-id');
   });
 });

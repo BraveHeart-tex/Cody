@@ -24,7 +24,7 @@ interface ManualAddAccountFormProps {
 }
 
 export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
-  const { accounts, addAccount, error, isLoading } = useAccounts();
+  const { accounts, addAccount, error, isLoading, retryLoad } = useAccounts();
   const [issuer, setIssuer] = useState('');
   const [label, setLabel] = useState('');
   const [secret, setSecret] = useState('');
@@ -34,6 +34,7 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const pendingSave = useRef<{
     key: string;
     account: ReturnType<typeof createManualOtpAccount>;
@@ -54,7 +55,10 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
     [accounts, digits, issuer, label, period, secret]
   );
 
-  const storageError = error == null ? null : 'Account storage is unavailable.';
+  const storageError =
+    error == null
+      ? null
+      : 'Cody could not read the saved accounts. Retry to try again.';
   const validationError =
     hasSubmitted || label.length > 0 || secret.length > 0
       ? validation.error
@@ -62,6 +66,23 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
   const statusMessage = saveError ?? storageError ?? validationError;
   const isSubmitDisabled =
     isLoading || isSaving || storageError != null || !validation.isValid;
+
+  const handleRetry = useCallback(async () => {
+    if (isRetrying) {
+      return;
+    }
+
+    setSaveError(null);
+    setIsRetrying(true);
+
+    try {
+      await retryLoad();
+    } catch {
+      // The storage error from useAccounts remains visible for another retry.
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [isRetrying, retryLoad]);
 
   const handleSubmit = useCallback(async () => {
     setHasSubmitted(true);
@@ -192,6 +213,17 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       </View>
 
       {statusMessage != null ? <StatusMessage value={statusMessage} /> : null}
+
+      {storageError != null || isRetrying ? (
+        <Button
+          accessibilityLabel="Retry loading saved accounts"
+          disabled={isRetrying || isLoading}
+          onPress={() => void handleRetry()}
+          variant="outline"
+        >
+          <Text>{isRetrying || isLoading ? 'Retrying...' : 'Retry'}</Text>
+        </Button>
+      ) : null}
 
       <Button disabled={isSubmitDisabled} onPress={handleSubmit}>
         <Text>

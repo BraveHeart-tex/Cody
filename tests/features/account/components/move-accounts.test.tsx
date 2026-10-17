@@ -19,8 +19,10 @@ import type { UseAccountsResult } from '@/features/totp/hooks/use-accounts';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 const mockReorderAccounts = jest.fn<UseAccountsResult['reorderAccounts']>();
+const mockRetryLoad = jest.fn<UseAccountsResult['retryLoad']>();
 let mockAccounts: OtpAccount[] = [];
 let mockError: Error | null = null;
+let mockIsLoading = false;
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -102,8 +104,8 @@ jest.mock('@/features/totp/hooks/use-accounts', () => ({
     addAccount: jest.fn<UseAccountsResult['addAccount']>(),
     deleteAccount: jest.fn<UseAccountsResult['deleteAccount']>(),
     error: mockError,
-    isLoading: false,
-    retryLoad: jest.fn<UseAccountsResult['retryLoad']>(),
+    isLoading: mockIsLoading,
+    retryLoad: mockRetryLoad,
     retryAccount: jest.fn<UseAccountsResult['retryAccount']>(),
     removeDamagedAccount: jest.fn<UseAccountsResult['removeDamagedAccount']>(),
     startReaddingAccounts:
@@ -231,12 +233,14 @@ describe('MoveAccountsScreen', () => {
   beforeEach(() => {
     mockAccounts = [account, secondAccount];
     mockError = null;
+    mockIsLoading = false;
     mockReorderAccounts.mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
     await cleanup();
     mockReorderAccounts.mockReset();
+    mockRetryLoad.mockReset();
     jest.mocked(router.replace).mockReset();
   });
 
@@ -280,9 +284,7 @@ describe('MoveAccountsScreen', () => {
 
   it('shows a save error and restores saved order when reorder fails', async () => {
     mockReorderAccounts.mockImplementationOnce(async () => {
-      mockError = new Error('Storage failed');
-
-      throw mockError;
+      throw new Error('Storage failed');
     });
 
     const { getAllByTestId, getByTestId, getByText, queryByText } =
@@ -301,6 +303,29 @@ describe('MoveAccountsScreen', () => {
       'move-account-card-account-id',
       'move-account-card-second-account-id'
     ]);
+  });
+
+  it('retries a failed storage load while keeping available accounts visible', async () => {
+    mockError = new Error('Storage unavailable');
+    mockRetryLoad.mockImplementation(async () => {
+      mockError = null;
+    });
+
+    const { getAllByTestId, getByLabelText, getByText, queryByText, rerender } =
+      await render(<MoveAccountsScreen />);
+
+    expect(getByText('Could not load saved accounts')).toBeTruthy();
+    expect(getByText('GitHub')).toBeTruthy();
+    expect(getByText('Dropbox')).toBeTruthy();
+
+    await fireEvent.press(getByLabelText('Retry loading saved accounts'));
+    rerender(<MoveAccountsScreen />);
+
+    await waitFor(() => {
+      expect(mockRetryLoad).toHaveBeenCalledTimes(1);
+      expect(queryByText('Could not load saved accounts')).toBeNull();
+    });
+    expect(getAllByTestId(/move-account-card-/)).toHaveLength(2);
   });
 
   it('returns home from the Done header action', async () => {

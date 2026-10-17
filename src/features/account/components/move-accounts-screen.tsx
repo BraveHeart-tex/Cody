@@ -1,4 +1,6 @@
+import { Button } from '@/components/ui/button';
 import { StateCard } from '@/components/ui/state-card';
+import { Text } from '@/components/ui/text';
 import { AccountListSkeleton } from '@/features/account/components/account-list-skeleton';
 import { MoveAccountCard } from '@/features/account/components/move-account-card';
 import {
@@ -20,16 +22,34 @@ const ACCOUNT_GRID_GAP = 12;
 const DRAG_ACTIVATION_DELAY_MS = 0;
 
 export function MoveAccountsScreen() {
-  const { accounts, error, isLoading, reorderAccounts } = useAccounts();
+  const { accounts, error, isLoading, reorderAccounts, retryLoad } =
+    useAccounts();
   const [orderedAccountIds, setOrderedAccountIds] = useState<string[] | null>(
     null
   );
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const orderedAccounts = useMemo(
     () => orderAccountsByIds(accounts, orderedAccountIds),
     [accounts, orderedAccountIds]
   );
   const scrollableRef = useAnimatedRef<ScrollView>();
+
+  const handleRetry = useCallback(async () => {
+    if (isRetrying) {
+      return;
+    }
+
+    setIsRetrying(true);
+
+    try {
+      await retryLoad();
+    } catch {
+      // The storage error remains visible and the user can retry again.
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [isRetrying, retryLoad]);
 
   const handleDragStart = useCallback(() => {
     setSaveError(null);
@@ -58,7 +78,7 @@ export function MoveAccountsScreen() {
     []
   );
 
-  if (isLoading) {
+  if (isLoading && accounts.length === 0 && !isRetrying) {
     return (
       <View className="bg-background flex-1 px-6">
         <AccountListSkeleton />
@@ -66,13 +86,29 @@ export function MoveAccountsScreen() {
     );
   }
 
-  if (error != null && accounts.length === 0) {
+  if (accounts.length === 0 && (error != null || isRetrying)) {
     return (
-      <View className="bg-background flex-1 px-6">
+      <View className="bg-background flex-1 gap-3 px-6">
         <StateCard
-          description="Try closing and reopening the app. Your saved secrets were not changed."
-          title="Could not load saved accounts"
+          description={
+            isRetrying
+              ? 'Cody is trying to read your saved accounts again.'
+              : 'Cody could not read the saved accounts. Retry to try again.'
+          }
+          title={
+            isRetrying
+              ? 'Retrying saved accounts'
+              : 'Could not load saved accounts'
+          }
         />
+        <Button
+          accessibilityLabel="Retry loading saved accounts"
+          disabled={isRetrying || isLoading}
+          onPress={() => void handleRetry()}
+          variant="outline"
+        >
+          <Text>{isRetrying || isLoading ? 'Retrying...' : 'Retry'}</Text>
+        </Button>
       </View>
     );
   }
@@ -95,6 +131,30 @@ export function MoveAccountsScreen() {
       contentContainerClassName="gap-5 px-6 pb-safe"
       showsVerticalScrollIndicator={false}
     >
+      {error != null || isRetrying ? (
+        <View className="gap-3">
+          <StateCard
+            description={
+              isRetrying
+                ? 'Cody is trying to read your saved accounts again.'
+                : 'Cody could not read the saved accounts. Retry to try again.'
+            }
+            title={
+              isRetrying
+                ? 'Retrying saved accounts'
+                : 'Could not load saved accounts'
+            }
+          />
+          <Button
+            accessibilityLabel="Retry loading saved accounts"
+            disabled={isRetrying || isLoading}
+            onPress={() => void handleRetry()}
+            variant="outline"
+          >
+            <Text>{isRetrying || isLoading ? 'Retrying...' : 'Retry'}</Text>
+          </Button>
+        </View>
+      ) : null}
       {saveError != null ? (
         <StateCard description={saveError} title="Order was not saved" />
       ) : null}

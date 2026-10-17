@@ -13,6 +13,9 @@ import { DuplicateAccountSecretError } from '@/features/totp/model/account-error
 import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 
 const mockAddAccount = jest.fn<UseAccountsResult['addAccount']>();
+const mockRetryLoad = jest.fn<UseAccountsResult['retryLoad']>();
+let mockError: Error | null = null;
+let mockIsLoading = false;
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -70,9 +73,9 @@ jest.mock('@/features/totp/hooks/use-accounts', () => ({
     damagedAccounts: [],
     addAccount: mockAddAccount,
     deleteAccount: jest.fn<UseAccountsResult['deleteAccount']>(),
-    error: null,
-    isLoading: false,
-    retryLoad: jest.fn<UseAccountsResult['retryLoad']>(),
+    error: mockError,
+    isLoading: mockIsLoading,
+    retryLoad: mockRetryLoad,
     retryAccount: jest.fn<UseAccountsResult['retryAccount']>(),
     removeDamagedAccount: jest.fn<UseAccountsResult['removeDamagedAccount']>(),
     startReaddingAccounts:
@@ -88,6 +91,9 @@ describe('ManualAddAccountScreen', () => {
   afterEach(async () => {
     await cleanup();
     mockAddAccount.mockReset();
+    mockRetryLoad.mockReset();
+    mockError = null;
+    mockIsLoading = false;
     jest.mocked(router.replace).mockReset();
   });
 
@@ -169,5 +175,47 @@ describe('ManualAddAccountScreen', () => {
       await waitFor(() => getByText('This account is already saved.'))
     ).toBeTruthy();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed storage load and preserves the manual account draft', async () => {
+    mockError = new Error('Storage unavailable');
+    mockRetryLoad.mockImplementation(async () => {
+      mockError = null;
+    });
+    mockAddAccount.mockResolvedValue(undefined);
+
+    const { getByLabelText, getByText, queryByLabelText, rerender } =
+      await render(<ManualAddAccountScreen />);
+
+    await fireEvent.changeText(getByLabelText('Issuer'), 'GitHub');
+    await fireEvent.changeText(
+      getByLabelText('Account label'),
+      'user@example.com'
+    );
+    await fireEvent.changeText(
+      getByLabelText('Secret key'),
+      'JBSW Y3DP EHPK 3PXP'
+    );
+    expect(
+      getByText('Cody could not read the saved accounts. Retry to try again.')
+    ).toBeTruthy();
+
+    await fireEvent.press(getByLabelText('Retry loading saved accounts'));
+    rerender(<ManualAddAccountScreen />);
+
+    await waitFor(() => {
+      expect(mockRetryLoad).toHaveBeenCalledTimes(1);
+      expect(queryByLabelText('Retry loading saved accounts')).toBeNull();
+    });
+    expect(getByLabelText('Issuer').props.value).toBe('GitHub');
+    expect(getByLabelText('Account label').props.value).toBe(
+      'user@example.com'
+    );
+    expect(getByLabelText('Secret key').props.value).toBe(
+      'JBSW Y3DP EHPK 3PXP'
+    );
+
+    await fireEvent.press(getByText('Save Account'));
+    await waitFor(() => expect(mockAddAccount).toHaveBeenCalledTimes(1));
   });
 });

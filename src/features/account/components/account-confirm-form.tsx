@@ -29,14 +29,32 @@ export function AccountConfirmForm({
   onDraftExpiredScan,
   onSaved
 }: AccountConfirmFormProps) {
-  const { accounts, addAccount, error, isLoading } = useAccounts();
+  const { accounts, addAccount, error, isLoading, retryLoad } = useAccounts();
   const [label, setLabel] = useState(() => draft?.label ?? '');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const pendingSave = useRef<{
     key: string;
     account: ReturnType<typeof createScannedOtpAccount>;
   } | null>(null);
+
+  const handleRetry = useCallback(async () => {
+    if (isRetrying) {
+      return;
+    }
+
+    setSaveError(null);
+    setIsRetrying(true);
+
+    try {
+      await retryLoad();
+    } catch {
+      // The storage error from useAccounts remains visible for another retry.
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [isRetrying, retryLoad]);
 
   const isDuplicate =
     draft != null &&
@@ -129,7 +147,10 @@ export function AccountConfirmForm({
     );
   }
 
-  const storageError = error == null ? null : 'Account storage is unavailable.';
+  const storageError =
+    error == null
+      ? null
+      : 'Cody could not read the saved accounts. Retry to try again.';
   const statusMessage = secretError ?? saveError ?? storageError ?? labelError;
   const isSaveDisabled =
     isLoading ||
@@ -176,6 +197,16 @@ export function AccountConfirmForm({
       {statusMessage != null ? <StatusMessage value={statusMessage} /> : null}
 
       <View className="gap-3">
+        {storageError != null || isRetrying ? (
+          <Button
+            accessibilityLabel="Retry loading saved accounts"
+            disabled={isRetrying || isLoading}
+            onPress={() => void handleRetry()}
+            variant="outline"
+          >
+            <Text>{isRetrying || isLoading ? 'Retrying...' : 'Retry'}</Text>
+          </Button>
+        ) : null}
         <Button disabled={isSaveDisabled} onPress={handleSave}>
           <Text>
             {isSaving ? 'Saving...' : isLoading ? 'Loading...' : 'Save Account'}
