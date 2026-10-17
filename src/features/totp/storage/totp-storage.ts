@@ -8,7 +8,6 @@ import type {
   OtpType
 } from '@/features/totp/model/totp-account';
 
-const OTP_TYPES = new Set<OtpType>(['totp', 'hotp', 'steam']);
 const ALGORITHMS = new Set<Algorithm>(['SHA1', 'SHA256', 'SHA512']);
 const DIGITS = new Set<OtpAccountRecord['digits']>([6, 7, 8]);
 const PERIODS = new Set<NonNullable<OtpAccountRecord['period']>>([30, 60]);
@@ -105,6 +104,10 @@ export async function getAccountWriteJournal(): Promise<AccountWriteJournal | nu
 export async function saveAccountWriteJournal(
   journal: AccountWriteJournal
 ): Promise<void> {
+  if (!isAccountWriteJournal(journal)) {
+    throw new Error('The account write recovery data is invalid.');
+  }
+
   await writeJSON(KEYS.accountWriteJournal, journal);
 }
 
@@ -265,6 +268,10 @@ export async function getAccountRecord(
 export async function setAccountRecord(
   record: OtpAccountRecord
 ): Promise<void> {
+  if (!isOtpAccountRecord(record)) {
+    throw new Error('The saved account record is invalid.');
+  }
+
   await writeJSON(KEYS.accountRecord(record.id), record);
 }
 
@@ -395,7 +402,6 @@ function isOtpAccountRecord(value: unknown): value is OtpAccountRecord {
     isAlgorithm(value.algorithm) &&
     isDigits(value.digits) &&
     isOptional(value.period, isPeriod) &&
-    isOptional(value.counter, isNumber) &&
     isOptional(value.iconUrl, isString) &&
     isOptional(value.color, isString) &&
     typeof value.sortOrder === 'number' &&
@@ -409,7 +415,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isOtpType(value: unknown): value is OtpType {
-  return OTP_TYPES.has(value as OtpType);
+  return value === 'totp';
 }
 
 function isAlgorithm(value: unknown): value is Algorithm {

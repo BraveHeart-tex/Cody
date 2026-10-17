@@ -145,36 +145,18 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
   removeDamagedAccount: async id => {
     await runMutation(async () => {
       try {
-        let { accountIds, damagedAccounts } = get();
+        let { accountIds, accounts, damagedAccounts } = get();
 
         if (!damagedAccounts.some(account => account.id === id)) {
           return;
         }
 
-        const journal = await getAccountWriteJournal();
+        await ensureNoPendingWrite(set);
+        ({ accountIds, accounts, damagedAccounts } = get());
 
-        if (journal != null && journal.affectedIds.includes(id)) {
-          const currentRecord = damagedAccounts.find(
-            account => account.id === id
-          )?.record;
-          const removeJournal: AccountWriteJournal = {
-            kind: 'remove',
-            accountIds: accountIds.filter(accountId => accountId !== id),
-            affectedIds: [id],
-            records: currentRecord == null ? [] : [currentRecord],
-            secretAccountId: journal.secretAccountId,
-            removeAccountId: id
-          };
-
-          await saveAccountWriteJournal(removeJournal);
-          await applyAccountWriteJournal(removeJournal);
-          await refreshStoreSnapshot(set);
-
+        if (!accountIds.includes(id)) {
           return;
         }
-
-        await ensureNoPendingWrite(set);
-        ({ accountIds, damagedAccounts } = get());
 
         const nextIds = accountIds.filter(accountId => accountId !== id);
 
@@ -183,6 +165,7 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
 
         set({
           accountIds: nextIds,
+          accounts: accounts.filter(account => account.id !== id),
           damagedAccounts: damagedAccounts.filter(account => account.id !== id),
           error: null,
           loadStatus: 'loaded'

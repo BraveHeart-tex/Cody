@@ -26,9 +26,12 @@ import {
   getAllAccounts,
   getAccountIndex,
   KEYS,
+  saveAccountWriteJournal,
+  setAccountRecord,
   setSecret
 } from '@/features/totp/storage/totp-storage';
 import type { OtpAccountRecord } from '@/features/totp/model/totp-account';
+import type { AccountWriteJournal } from '@/features/totp/storage/totp-storage';
 
 const baseRecord: OtpAccountRecord = {
   id: 'good-id',
@@ -102,6 +105,67 @@ describe('TOTP storage health', () => {
       },
       { id: 'missing-record-id', record: null, reason: 'missing-record' }
     ]);
+  });
+
+  it('keeps unsupported account types out of usable accounts', async () => {
+    const hotpRecord = { ...baseRecord, id: 'hotp-id', type: 'hotp' };
+    const steamRecord = { ...baseRecord, id: 'steam-id', type: 'steam' };
+    const unsupportedRecords = [hotpRecord, steamRecord];
+
+    await AsyncStorage.setItem(
+      KEYS.accountIndex,
+      JSON.stringify(unsupportedRecords.map(({ id }) => id))
+    );
+
+    for (const record of unsupportedRecords) {
+      await AsyncStorage.setItem(
+        KEYS.accountRecord(record.id),
+        JSON.stringify(record)
+      );
+      await setSecret(record.id, 'JBSWY3DPEHPK3PXP');
+    }
+
+    const snapshot = await getAllAccounts();
+
+    expect(snapshot.accounts).toEqual([]);
+    expect(snapshot.damagedAccounts).toEqual([
+      { id: 'hotp-id', record: null, reason: 'invalid-record' },
+      { id: 'steam-id', record: null, reason: 'invalid-record' }
+    ]);
+
+    for (const record of unsupportedRecords) {
+      expect(await AsyncStorage.getItem(KEYS.accountRecord(record.id))).toBe(
+        JSON.stringify(record)
+      );
+    }
+  });
+
+  it('rejects unsupported account types when saving records', async () => {
+    const unsupportedRecord = {
+      ...baseRecord,
+      type: 'hotp'
+    } as unknown as OtpAccountRecord;
+    const unsupportedJournal = {
+      kind: 'write',
+      accountIds: [baseRecord.id],
+      affectedIds: [baseRecord.id],
+      records: [unsupportedRecord],
+      secretAccountId: null,
+      removeAccountId: null
+    } as unknown as AccountWriteJournal;
+
+    await expect(setAccountRecord(unsupportedRecord)).rejects.toThrow(
+      'The saved account record is invalid.'
+    );
+    await expect(saveAccountWriteJournal(unsupportedJournal)).rejects.toThrow(
+      'The account write recovery data is invalid.'
+    );
+    await expect(
+      AsyncStorage.getItem(KEYS.accountRecord(baseRecord.id))
+    ).resolves.toBeNull();
+    await expect(
+      AsyncStorage.getItem(KEYS.accountWriteJournal)
+    ).resolves.toBeNull();
   });
 
   it('rejects a parsed index with a non-string account id', async () => {
