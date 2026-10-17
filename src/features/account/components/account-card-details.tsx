@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { CardContent } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
+import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { AccountCountdownProgress } from '@/features/account/components/account-countdown-progress';
 import { copyPasscode } from '@/features/account/model/passcode-clipboard';
@@ -12,11 +13,18 @@ import type { OtpAccount } from '@/features/totp/model/totp-account';
 import { generateTotpCode } from '@/features/totp/model/totp-code';
 import * as Haptics from 'expo-haptics';
 import { CheckIcon, CopyIcon } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, type GestureResponderEvent } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  View,
+  type GestureResponderEvent
+} from 'react-native';
 
 const CODE_PLACEHOLDER = 'Code unavailable';
 const COPIED_FEEDBACK_MS = 1500;
+const COPY_ERROR_MESSAGE = 'Couldn’t copy passcode. Try again.';
+
+type CopyAction = 'copy' | 'retry';
 
 interface AccountCardDetailsProps {
   account: OtpAccount;
@@ -32,6 +40,9 @@ export function AccountCardDetails({
   period
 }: AccountCardDetailsProps) {
   const [isCopied, setIsCopied] = useState(false);
+  const [pendingAction, setPendingAction] = useState<CopyAction | null>(null);
+  const [hasCopyError, setHasCopyError] = useState(false);
+  const copyPendingRef = useRef(false);
   const countdown = useTotpCountdown(period);
   const code = useMemo(
     () =>
@@ -63,19 +74,47 @@ export function AccountCardDetails({
     return () => clearTimeout(timeoutId);
   }, [isCopied]);
 
-  const handleCopyPress = useCallback(
-    async (event: GestureResponderEvent) => {
-      event.stopPropagation();
-
-      if (code.length === 0) {
+  const handleCopy = useCallback(
+    async (action: CopyAction) => {
+      if (copyPendingRef.current || code.length === 0) {
         return;
       }
 
-      await copyPasscode(code);
-      setIsCopied(true);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      copyPendingRef.current = true;
+      setPendingAction(action);
+      setHasCopyError(false);
+      setIsCopied(false);
+
+      try {
+        await copyPasscode(code);
+        setIsCopied(true);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+          () => undefined
+        );
+      } catch {
+        setHasCopyError(true);
+      } finally {
+        copyPendingRef.current = false;
+        setPendingAction(null);
+      }
     },
     [code]
+  );
+
+  const handleCopyPress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      void handleCopy('copy');
+    },
+    [handleCopy]
+  );
+
+  const handleRetryPress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      void handleCopy('retry');
+    },
+    [handleCopy]
   );
 
   return (
@@ -92,22 +131,61 @@ export function AccountCardDetails({
             {code || CODE_PLACEHOLDER}
           </Text>
           <Button
-            disabled={code.length === 0}
+            disabled={code.length === 0 || pendingAction != null}
             accessibilityLabel={
               code.length === 0
                 ? 'Passcode unavailable'
-                : isCopied
-                  ? 'Passcode copied'
-                  : `Copy ${issuer} passcode`
+                : pendingAction === 'copy'
+                  ? 'Copying passcode'
+                  : isCopied
+                    ? 'Passcode copied'
+                    : `Copy ${issuer} passcode`
             }
+            accessibilityState={{ busy: pendingAction === 'copy' }}
             onPress={handleCopyPress}
             size="icon"
             testID="account-card-copy"
             variant="ghost"
           >
-            <Icon as={isCopied && code.length > 0 ? CheckIcon : CopyIcon} />
+            {pendingAction === 'copy' ? (
+              <ActivityIndicator
+                accessible={false}
+                size="small"
+                testID="account-card-copy-spinner"
+              />
+            ) : (
+              <Icon as={isCopied && code.length > 0 ? CheckIcon : CopyIcon} />
+            )}
           </Button>
         </View>
+        {hasCopyError || pendingAction === 'retry' ? (
+          <View className="flex-row items-center gap-2">
+            {hasCopyError ? (
+              <View className="min-w-0 flex-1">
+                <StatusMessage value={COPY_ERROR_MESSAGE} />
+              </View>
+            ) : null}
+            <Button
+              accessibilityLabel="Retry copying passcode"
+              accessibilityState={{ busy: pendingAction === 'retry' }}
+              disabled={pendingAction != null}
+              onPress={handleRetryPress}
+              size="sm"
+              testID="account-card-copy-retry"
+              variant="outline"
+            >
+              {pendingAction === 'retry' ? (
+                <ActivityIndicator
+                  accessible={false}
+                  size="small"
+                  testID="account-card-copy-retry-spinner"
+                />
+              ) : (
+                <Text>Retry</Text>
+              )}
+            </Button>
+          </View>
+        ) : null}
       </View>
 
       <AccountCountdownProgress

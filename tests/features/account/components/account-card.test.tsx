@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -273,6 +274,110 @@ describe('AccountCard', () => {
       expect(mockSetStringAsync).toHaveBeenCalledWith('123456');
     });
     expect(getByLabelText('Passcode copied')).toBeTruthy();
+  });
+
+  it('disables copy and ignores repeated presses while the write is pending', async () => {
+    let resolveCopy: (() => void) | undefined;
+
+    mockSetStringAsync.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveCopy = resolve;
+        })
+    );
+
+    const { getByLabelText, getByTestId } = await render(
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={jest.fn()}
+        onPress={jest.fn()}
+      />
+    );
+    const copyButton = getByTestId('account-card-copy');
+
+    await fireEvent.press(copyButton);
+
+    expect(getByLabelText('Copying passcode')).toBeTruthy();
+    expect(copyButton).toBeDisabled();
+    await fireEvent.press(copyButton);
+    expect(mockSetStringAsync).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCopy?.();
+    });
+    await waitFor(() => expect(getByLabelText('Passcode copied')).toBeTruthy());
+  });
+
+  it('shows a retry action after failure and restores it after another failure', async () => {
+    mockSetStringAsync
+      .mockRejectedValueOnce(new Error('Clipboard unavailable'))
+      .mockRejectedValueOnce(new Error('Clipboard unavailable'));
+
+    const { getByLabelText, getByTestId, getByText, queryByLabelText } =
+      await render(
+        <AccountCard
+          account={account}
+          isActive
+          onDelete={jest.fn()}
+          onPress={jest.fn()}
+        />
+      );
+
+    await fireEvent.press(getByTestId('account-card-copy'));
+    await waitFor(() => {
+      expect(getByText('Couldn’t copy passcode. Try again.')).toBeTruthy();
+      expect(getByLabelText('Retry copying passcode')).toBeTruthy();
+    });
+
+    await fireEvent.press(getByTestId('account-card-copy-retry'));
+    await waitFor(() => {
+      expect(getByText('Couldn’t copy passcode. Try again.')).toBeTruthy();
+      expect(getByLabelText('Retry copying passcode')).toBeTruthy();
+    });
+
+    expect(mockSetStringAsync).toHaveBeenCalledTimes(2);
+    expect(queryByLabelText('Passcode copied')).toBeNull();
+  });
+
+  it('keeps retry visible with a spinner while retrying', async () => {
+    mockSetStringAsync.mockRejectedValueOnce(
+      new Error('Clipboard unavailable')
+    );
+    let resolveRetry: (() => void) | undefined;
+
+    mockSetStringAsync.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveRetry = resolve;
+        })
+    );
+
+    const { getByLabelText, getByTestId, getByText, queryByText } =
+      await render(
+        <AccountCard
+          account={account}
+          isActive
+          onDelete={jest.fn()}
+          onPress={jest.fn()}
+        />
+      );
+
+    await fireEvent.press(getByTestId('account-card-copy'));
+    await waitFor(() =>
+      expect(getByText('Couldn’t copy passcode. Try again.')).toBeTruthy()
+    );
+    await fireEvent.press(getByTestId('account-card-copy-retry'));
+
+    expect(queryByText('Couldn’t copy passcode. Try again.')).toBeNull();
+    expect(getByTestId('account-card-copy')).toBeDisabled();
+    expect(getByTestId('account-card-copy-retry')).toBeDisabled();
+    expect(getByTestId('account-card-copy-retry-spinner')).toBeTruthy();
+
+    await act(async () => {
+      resolveRetry?.();
+    });
+    await waitFor(() => expect(getByLabelText('Passcode copied')).toBeTruthy());
   });
 
   it('disables copying when a code is unavailable', async () => {
