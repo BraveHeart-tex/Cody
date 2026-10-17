@@ -29,7 +29,7 @@ jest.mock('@/features/totp/model/account-id', () => ({
 }));
 
 jest.mock('@/features/totp/model/totp-code', () => ({
-  generateTotpCode: () => '123456'
+  canGenerateTotpCode: () => true
 }));
 
 jest.mock('@/components/ui/button', () => {

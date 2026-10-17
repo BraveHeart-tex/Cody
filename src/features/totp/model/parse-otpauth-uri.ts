@@ -1,3 +1,4 @@
+import { canGenerateTotpCode } from '@/features/totp/model/totp-code';
 import type { Algorithm, OtpAccount } from '@/features/totp/model/totp-account';
 
 export type TotpDraft = Pick<
@@ -69,6 +70,20 @@ export function parseOtpAuthUri(value: string): ParseOtpAuthUriResult {
 
   if (!periodResult.ok) {
     return periodResult;
+  }
+
+  if (
+    !canGenerateTotpCode({
+      secret,
+      algorithm: algorithmResult.value,
+      digits: digitsResult.value,
+      period: periodResult.value
+    })
+  ) {
+    return {
+      ok: false,
+      error: 'Scan a QR code with a valid authenticator secret.'
+    };
   }
 
   const labelParts = parseLabel(url.pathname);

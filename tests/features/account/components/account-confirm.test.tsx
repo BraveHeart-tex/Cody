@@ -26,7 +26,7 @@ let mockDraftId = 'qr-draft-id';
 const scannedDraft: TotpDraft = {
   issuer: 'GitHub',
   label: 'user@example.com',
-  secret: 'JBSWY3DPEHPK3PXP',
+  secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
   type: 'totp',
   algorithm: 'SHA1',
   digits: 6,
@@ -162,7 +162,7 @@ describe('AccountConfirmScreen', () => {
         id: 'scanned-account-id',
         issuer: 'GitHub',
         label: 'edited@example.com',
-        secret: 'JBSWY3DPEHPK3PXP',
+        secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
         type: 'totp',
         algorithm: 'SHA1',
         digits: 6,
@@ -178,6 +178,19 @@ describe('AccountConfirmScreen', () => {
     });
     expect(mockDeleteScannerDraft).toHaveBeenCalledWith('qr-draft-id');
     expect(router.replace).toHaveBeenCalledWith('/');
+  });
+
+  it('rejects drafts whose secret cannot generate a code', async () => {
+    mockGetScannerDraft.mockReturnValue({ ...scannedDraft, secret: 'ABC' });
+    const { getByText } = await render(<AccountConfirmScreen />);
+
+    expect(
+      getByText('Scan a QR code with a valid authenticator secret.')
+    ).toBeTruthy();
+    await fireEvent.press(getByText('Save Account'));
+    expect(mockAddAccount).not.toHaveBeenCalled();
+    expect(mockDeleteScannerDraft).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it('blocks saving when the edited label is blank', async () => {

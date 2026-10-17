@@ -1,21 +1,17 @@
-/* eslint-disable import/first */
-import { describe, expect, it, jest } from '@jest/globals';
-
-jest.mock('@/features/totp/model/totp-code', () => ({
-  generateTotpCode: ({ secret }: { secret: string }) =>
-    secret === 'BADSECRET' ? '' : '123456'
-}));
+import { describe, expect, it } from '@jest/globals';
 
 import {
   normalizeManualSecret,
   validateManualAccount
 } from '@/features/totp/model/manual-account';
 
-const VALID_SECRET = 'JBSWY3DPEHPK3PXP';
+const VALID_SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 
 describe('manual account validation', () => {
   it('normalizes whitespace and casing from manual secrets', () => {
-    expect(normalizeManualSecret(' jbsw y3dp ehpk 3pxp ')).toBe(VALID_SECRET);
+    expect(
+      normalizeManualSecret(' gezd gnbv gy3t qojq gezd gnbv gy3t qojq ')
+    ).toBe(VALID_SECRET);
   });
 
   it('accepts a valid manual TOTP account', () => {
@@ -23,7 +19,7 @@ describe('manual account validation', () => {
       {
         issuer: ' GitHub ',
         label: ' user@example.com ',
-        secret: ' jbsw y3dp ehpk 3pxp ',
+        secret: ' gezd gnbv gy3t qojq gezd gnbv gy3t qojq ',
         period: 30,
         digits: 6
       },
@@ -88,7 +84,7 @@ describe('manual account validation', () => {
         []
       )
     ).toMatchObject({
-      error: 'Secret key is not valid.',
+      error: 'Enter a valid authenticator secret.',
       isValid: false
     });
   });
@@ -99,7 +95,7 @@ describe('manual account validation', () => {
         {
           issuer: 'GitHub',
           label: 'user@example.com',
-          secret: 'jbsw y3dp ehpk 3pxp',
+          secret: 'gezd gnbv gy3t qojq gezd gnbv gy3t qojq',
           period: 60,
           digits: 8
         },

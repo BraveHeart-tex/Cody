@@ -1,4 +1,4 @@
-import { generateTotpCode } from '@/features/totp/model/totp-code';
+import { canGenerateTotpCode } from '@/features/totp/model/totp-code';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 export type ManualTotpPeriod = 30 | 60;
@@ -21,7 +21,6 @@ export interface ManualAccountValidationResult {
 }
 
 const BASE32_SECRET = /^[A-Z2-7]+=*$/;
-const DEFAULT_TIMESTAMP = 0;
 
 export function normalizeManualSecret(value: string): string {
   return value.replace(/\s+/g, '').toUpperCase();
@@ -50,16 +49,18 @@ export function validateManualAccount(
     );
   }
 
-  const code = generateTotpCode({
-    secret,
-    algorithm: 'SHA1',
-    period: values.period,
-    digits: values.digits,
-    timestamp: DEFAULT_TIMESTAMP
-  });
-
-  if (code.length === 0) {
-    return invalid({ issuer, label, secret }, 'Secret key is not valid.');
+  if (
+    !canGenerateTotpCode({
+      secret,
+      algorithm: 'SHA1',
+      period: values.period,
+      digits: values.digits
+    })
+  ) {
+    return invalid(
+      { issuer, label, secret },
+      'Enter a valid authenticator secret.'
+    );
   }
 
   const isDuplicate = accounts.some(

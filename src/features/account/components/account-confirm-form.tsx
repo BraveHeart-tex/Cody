@@ -9,6 +9,7 @@ import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createScannedOtpAccount } from '@/features/totp/model/create-account';
 import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
+import { canGenerateTotpCode } from '@/features/totp/model/totp-code';
 import { deleteScannerDraft } from '@/features/totp/model/scanner-drafts';
 
 interface AccountConfirmFormProps {
@@ -33,6 +34,14 @@ export function AccountConfirmForm({
 
   const isDuplicate =
     draft != null && accounts.some(account => account.secret === draft.secret);
+  const secretError =
+    draft != null &&
+    !canGenerateTotpCode({
+      ...draft,
+      period: draft.period ?? 30
+    })
+      ? 'Scan a QR code with a valid authenticator secret.'
+      : null;
   const trimmedLabel = label.trim();
   const labelError =
     draft != null && trimmedLabel.length === 0
@@ -50,7 +59,7 @@ export function AccountConfirmForm({
       return;
     }
 
-    if (labelError != null) {
+    if (labelError != null || secretError != null) {
       return;
     }
 
@@ -75,6 +84,7 @@ export function AccountConfirmForm({
     isLoading,
     isSaving,
     labelError,
+    secretError,
     onSaved,
     trimmedLabel
   ]);
@@ -98,13 +108,14 @@ export function AccountConfirmForm({
   }
 
   const storageError = error == null ? null : 'Account storage is unavailable.';
-  const statusMessage = saveError ?? storageError ?? labelError;
+  const statusMessage = secretError ?? saveError ?? storageError ?? labelError;
   const isSaveDisabled =
     isLoading ||
     isSaving ||
     storageError != null ||
     isDuplicate ||
-    labelError != null;
+    labelError != null ||
+    secretError != null;
 
   return (
     <ScrollView

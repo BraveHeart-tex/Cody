@@ -38,3 +38,9 @@ export function generateTotpCode({
     return '';
   }
 }
+
+export function canGenerateTotpCode(
+  input: Omit<GenerateTotpCodeInput, 'timestamp'>
+): boolean {
+  return generateTotpCode({ ...input, timestamp: 0 }).length > 0;
+}

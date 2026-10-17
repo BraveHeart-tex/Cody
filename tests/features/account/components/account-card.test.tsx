@@ -11,6 +11,7 @@ import { Alert, type AlertButton } from 'react-native';
 import { AccountCard } from '@/features/account/components/account-card';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
+let mockCode = '123456';
 const mockSetStringAsync = jest.fn<(passcode: string) => Promise<void>>();
 
 (
@@ -22,7 +23,7 @@ jest.mock('@/features/account/model/passcode-clipboard', () => ({
 }));
 
 jest.mock('@/features/totp/model/totp-code', () => ({
-  generateTotpCode: () => '123456'
+  generateTotpCode: () => mockCode
 }));
 
 jest.mock('@/features/totp/hooks/use-totp-countdown', () => ({
@@ -155,6 +156,7 @@ describe('AccountCard', () => {
   afterEach(async () => {
     await cleanup();
     mockSetStringAsync.mockReset();
+    mockCode = '123456';
     jest.restoreAllMocks();
   });
 
@@ -271,6 +273,24 @@ describe('AccountCard', () => {
       expect(mockSetStringAsync).toHaveBeenCalledWith('123456');
     });
     expect(getByLabelText('Passcode copied')).toBeTruthy();
+  });
+
+  it('disables copying when a code is unavailable', async () => {
+    mockCode = '';
+    const { getByText, getByTestId, queryByLabelText } = await render(
+      <AccountCard
+        account={account}
+        isActive
+        onDelete={jest.fn()}
+        onPress={jest.fn()}
+      />
+    );
+
+    expect(getByText('Code unavailable')).toBeTruthy();
+    expect(getByTestId('account-card-copy')).toBeDisabled();
+    await fireEvent.press(getByTestId('account-card-copy'));
+    expect(mockSetStringAsync).not.toHaveBeenCalled();
+    expect(queryByLabelText('Passcode copied')).toBeNull();
   });
 
   it('opens a permanent deletion alert without deleting immediately', async () => {

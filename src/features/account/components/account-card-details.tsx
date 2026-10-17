@@ -15,7 +15,7 @@ import { CheckIcon, CopyIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, type GestureResponderEvent } from 'react-native';
 
-const CODE_PLACEHOLDER = '******';
+const CODE_PLACEHOLDER = 'Code unavailable';
 const COPIED_FEEDBACK_MS = 1500;
 
 interface AccountCardDetailsProps {
@@ -41,7 +41,7 @@ export function AccountCardDetails({
         period,
         digits: account.digits,
         timestamp: countdown.periodStartedAt
-      }) || CODE_PLACEHOLDER,
+      }),
     [
       account.algorithm,
       account.digits,
@@ -66,6 +66,11 @@ export function AccountCardDetails({
   const handleCopyPress = useCallback(
     async (event: GestureResponderEvent) => {
       event.stopPropagation();
+
+      if (code.length === 0) {
+        return;
+      }
+
       await copyPasscode(code);
       setIsCopied(true);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -84,18 +89,23 @@ export function AccountCardDetails({
             minimumFontScale={0.75}
             numberOfLines={1}
           >
-            {code}
+            {code || CODE_PLACEHOLDER}
           </Text>
           <Button
+            disabled={code.length === 0}
             accessibilityLabel={
-              isCopied ? 'Passcode copied' : `Copy ${issuer} passcode`
+              code.length === 0
+                ? 'Passcode unavailable'
+                : isCopied
+                  ? 'Passcode copied'
+                  : `Copy ${issuer} passcode`
             }
             onPress={handleCopyPress}
             size="icon"
             testID="account-card-copy"
             variant="ghost"
           >
-            <Icon as={isCopied ? CheckIcon : CopyIcon} />
+            <Icon as={isCopied && code.length > 0 ? CheckIcon : CopyIcon} />
           </Button>
         </View>
       </View>
