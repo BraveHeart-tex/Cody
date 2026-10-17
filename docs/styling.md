@@ -29,3 +29,23 @@ Families, face names, and loading assets live in `src/theme/fonts.ts`.
 Use `appFonts.faces` / `monoFonts.faces` for native font references and
 `appFontAssets` for loading. Keep `--font-sans` / `--font-mono` in
 `src/global.css` aligned with the corresponding default faces.
+
+Use the shared `Text` and `Input` components for app-owned text. Use weight
+utilities (`font-medium`, `font-semibold`, `font-bold`, `font-extrabold`) on
+these components instead of setting `fontWeight` in a style. Their shared
+`fontClassName` resolver selects the corresponding Hanken Grotesk face and
+resets native weight to `normal`. The weight is already part of the font file;
+combining a regular face with a numeric weight can select the wrong face or
+fall back to a system font on Android.
+
+Passcodes intentionally use `font-mono` (JetBrains Mono SemiBold). Keep this
+exception. `font-normal` and `font-medium` select its regular and medium faces.
+
+Keep weight utilities unprefixed. If adding conditional/responsive weights or
+new families/weights, extend the resolver and the matching `--font-*` tokens.
+Third-party text primitives that bypass `Text` must use `fontClassName` too.
+Do not set font families on a parent `View` and expect native text to inherit.
+
+Navigation theme fonts must use `appFonts.faces` with `fontWeight: 'normal'`
+in both themes, including back labels. Explicit header font styles must follow
+the same rule. OS-owned alerts and permission dialogs retain system fonts.

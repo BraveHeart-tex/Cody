@@ -38,7 +38,11 @@ export default function RootLayout() {
     () => ({
       headerShadowVisible: false,
       headerStyle: { backgroundColor: theme.colors.background },
-      headerTitleStyle: { fontFamily: appFonts.faces.semiBold, fontSize: 17 },
+      headerTitleStyle: {
+        fontFamily: appFonts.faces.semiBold,
+        fontWeight: 'normal' as const,
+        fontSize: 17
+      },
       headerTintColor: theme.colors.text,
       contentStyle: { backgroundColor: theme.colors.background }
     }),

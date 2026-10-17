@@ -2,6 +2,7 @@ import { Icon } from '@/components/ui/icon';
 import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
 import { Text, TextClassContext } from '@/components/ui/text';
 import { cn } from '@/lib/utils/cn';
+import { fontClassName } from '@/lib/utils/font-class-name';
 import {
   CheckboxItem as DropdownMenuPrimitiveCheckboxItem,
   Content as DropdownMenuPrimitiveContent,
@@ -258,10 +259,12 @@ function DropdownMenuLabel({
 }) {
   return (
     <DropdownMenuPrimitiveLabel
-      className={cn(
-        'text-foreground px-2 py-2 text-sm font-medium sm:py-1.5',
-        inset && 'pl-8',
-        className
+      className={fontClassName(
+        cn(
+          'text-foreground px-2 py-2 font-sans text-sm font-medium sm:py-1.5',
+          inset && 'pl-8',
+          className
+        )
       )}
       {...props}
     />

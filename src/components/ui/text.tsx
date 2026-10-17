@@ -1,10 +1,10 @@
 import { cn } from '@/lib/utils/cn';
-import { monoFonts } from '@/theme/fonts';
+import { fontClassName } from '@/lib/utils/font-class-name';
 import { Slot } from '@rn-primitives/slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { createContext, useContext } from 'react';
 
-import { StyleSheet, Text as RNText, type Role } from 'react-native';
+import { Text as RNText, type Role } from 'react-native';
 
 const textVariants = cva('text-foreground font-sans text-base', {
   variants: {
@@ -68,21 +68,16 @@ function Text({
 
   return (
     <Component
-      className={resolvedClassName}
+      className={cn(
+        fontClassName(resolvedClassName),
+        usesMono && 'tracking-[1px]'
+      )}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
-      style={[usesMono && styles.mono, style]}
+      style={style}
       {...props}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  mono: {
-    fontFamily: monoFonts.faces.semiBold,
-    letterSpacing: 1,
-    fontWeight: '600'
-  }
-});
 
 export { Text, TextClassContext };
