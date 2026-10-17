@@ -180,6 +180,14 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           return;
         }
 
+        if (account.secret != null) {
+          set({
+            accountSecretLoading: omitKey(current.accountSecretLoading, id)
+          });
+
+          return;
+        }
+
         if (secret == null) {
           moveAccountToDamaged(set, get, id, 'missing-secret');
 
