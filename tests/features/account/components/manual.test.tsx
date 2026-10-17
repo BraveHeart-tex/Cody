@@ -16,6 +16,7 @@ const mockAddAccount = jest.fn<UseAccountsResult['addAccount']>();
 const mockRetryLoad = jest.fn<UseAccountsResult['retryLoad']>();
 let mockError: Error | null = null;
 let mockIsLoading = false;
+let mockCanGenerateTotpCode = true;
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -28,12 +29,16 @@ jest.mock('expo-router', () => ({
   }
 }));
 
+jest.mock('expo-router/react-navigation', () => ({
+  useHeaderHeight: () => 88
+}));
+
 jest.mock('@/features/totp/model/account-id', () => ({
   createAccountId: () => 'manual-account-id'
 }));
 
 jest.mock('@/features/totp/model/totp-code', () => ({
-  canGenerateTotpCode: () => true
+  canGenerateTotpCode: () => mockCanGenerateTotpCode
 }));
 
 jest.mock('@/components/ui/button', () => {
@@ -66,6 +71,10 @@ jest.mock('@/components/ui/text', () => {
   };
 });
 
+jest.mock('@/components/ui/icon', () => ({
+  Icon: () => null
+}));
+
 jest.mock('@/features/totp/hooks/use-accounts', () => ({
   useAccounts: (): UseAccountsResult => ({
     accounts: [],
@@ -96,21 +105,95 @@ describe('ManualAddAccountScreen', () => {
     mockRetryLoad.mockReset();
     mockError = null;
     mockIsLoading = false;
+    mockCanGenerateTotpCode = true;
     jest.mocked(router.replace).mockReset();
   });
 
   it('masks and reveals the secret key field', async () => {
-    const { getByLabelText, getByText } = await render(
-      <ManualAddAccountScreen />
-    );
+    const { getByLabelText } = await render(<ManualAddAccountScreen />);
 
     expect(getByLabelText('Secret key').props.secureTextEntry).toBe(true);
 
-    await fireEvent.press(getByText('Show'));
+    await fireEvent.press(getByLabelText('Reveal secret key'));
 
     await waitFor(() => {
       expect(getByLabelText('Secret key').props.secureTextEntry).toBe(false);
     });
+  });
+
+  it('shows required field errors after blur and clears them as the draft is corrected', async () => {
+    const { getByLabelText, getByText, queryByText } = await render(
+      <ManualAddAccountScreen />
+    );
+
+    expect(queryByText('Enter an account label.')).toBeNull();
+    expect(queryByText('Enter a secret key.')).toBeNull();
+
+    await fireEvent(getByLabelText('Account label'), 'blur');
+    expect(getByText('Enter an account label.')).toBeTruthy();
+
+    await fireEvent.changeText(
+      getByLabelText('Account label'),
+      'user@example.com'
+    );
+    expect(queryByText('Enter an account label.')).toBeNull();
+
+    await fireEvent(getByLabelText('Secret key'), 'blur');
+    expect(getByText('Enter a secret key.')).toBeTruthy();
+  });
+
+  it('shows both required field errors when a blank form is submitted', async () => {
+    const { getByText } = await render(<ManualAddAccountScreen />);
+
+    await fireEvent.press(getByText('Save account'));
+
+    expect(getByText('Enter an account label.')).toBeTruthy();
+    expect(getByText('Enter a secret key.')).toBeTruthy();
+  });
+
+  it('clears the label error while keeping the secret error after fixing only the label', async () => {
+    const { getByLabelText, getByText, queryByText } = await render(
+      <ManualAddAccountScreen />
+    );
+
+    await fireEvent.press(getByText('Save account'));
+    expect(getByText('Enter an account label.')).toBeTruthy();
+    expect(getByText('Enter a secret key.')).toBeTruthy();
+
+    await fireEvent.changeText(
+      getByLabelText('Account label'),
+      'user@example.com'
+    );
+
+    expect(queryByText('Enter an account label.')).toBeNull();
+    expect(getByText('Enter a secret key.')).toBeTruthy();
+  });
+
+  it('shows a whitespace label error separately from an invalid secret error', async () => {
+    const { getByLabelText, getByText } = await render(
+      <ManualAddAccountScreen />
+    );
+
+    await fireEvent.changeText(getByLabelText('Account label'), '   ');
+    await fireEvent.changeText(getByLabelText('Secret key'), 'ABC123');
+    await fireEvent.press(getByText('Save account'));
+
+    expect(getByText('Enter an account label.')).toBeTruthy();
+    expect(
+      getByText('Secret key must use base32 characters A-Z and 2-7.')
+    ).toBeTruthy();
+  });
+
+  it('validates secret generation on blur even when the label is blank', async () => {
+    mockCanGenerateTotpCode = false;
+    const { getByLabelText, getByText } = await render(
+      <ManualAddAccountScreen />
+    );
+
+    await fireEvent.changeText(getByLabelText('Secret key'), 'BADSECRET');
+    await fireEvent(getByLabelText('Secret key'), 'blur');
+
+    expect(getByText('Enter a valid authenticator secret.')).toBeTruthy();
   });
 
   it('saves a valid manual account and returns home', async () => {
@@ -130,7 +213,7 @@ describe('ManualAddAccountScreen', () => {
       getByLabelText('Secret key'),
       ' jbsw y3dp ehpk 3pxp '
     );
-    await fireEvent.press(getByText('Save Account'));
+    await fireEvent.press(getByText('Save account'));
 
     await waitFor(() => {
       expect(mockAddAccount).toHaveBeenCalledWith({
@@ -171,12 +254,54 @@ describe('ManualAddAccountScreen', () => {
       getByLabelText('Secret key'),
       'JBSWY3DPEHPK3PXP'
     );
-    await fireEvent.press(getByText('Save Account'));
+    await fireEvent.press(getByText('Save account'));
 
     expect(
-      await waitFor(() => getByText('This account is already saved.'))
+      await waitFor(() =>
+        getByText(
+          'This account is already saved. Your details are still here. Save again to retry.'
+        )
+      )
     ).toBeTruthy();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('keeps the failed save visible and retries with the same account draft', async () => {
+    mockAddAccount
+      .mockRejectedValueOnce(new Error('Storage unavailable'))
+      .mockResolvedValueOnce(undefined);
+
+    const { getByLabelText, getByText } = await render(
+      <ManualAddAccountScreen />
+    );
+
+    await fireEvent.changeText(
+      getByLabelText('Account label'),
+      'user@example.com'
+    );
+    await fireEvent.changeText(
+      getByLabelText('Secret key'),
+      'JBSWY3DPEHPK3PXP'
+    );
+    await fireEvent.press(getByText('Save account'));
+
+    expect(
+      await waitFor(() =>
+        getByText(
+          'Could not save this account. Try again. Your details are still here. Save again to retry.'
+        )
+      )
+    ).toBeTruthy();
+    expect(getByLabelText('Account label').props.value).toBe(
+      'user@example.com'
+    );
+
+    await fireEvent.press(getByText('Save account'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+    expect(mockAddAccount).toHaveBeenCalledTimes(2);
+    expect(mockAddAccount.mock.calls[1]?.[0]).toBe(
+      mockAddAccount.mock.calls[0]?.[0]
+    );
   });
 
   it('retries a failed storage load and preserves the manual account draft', async () => {
@@ -199,7 +324,9 @@ describe('ManualAddAccountScreen', () => {
       'JBSW Y3DP EHPK 3PXP'
     );
     expect(
-      getByText('Cody could not read the saved accounts. Retry to try again.')
+      getByText(
+        'Saved accounts unavailable. We need to check your saved accounts before adding another. Try loading them again.'
+      )
     ).toBeTruthy();
 
     await fireEvent.press(getByLabelText('Retry loading saved accounts'));
@@ -217,7 +344,18 @@ describe('ManualAddAccountScreen', () => {
       'JBSW Y3DP EHPK 3PXP'
     );
 
-    await fireEvent.press(getByText('Save Account'));
+    await fireEvent.press(getByText('Save account'));
     await waitFor(() => expect(mockAddAccount).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows a skeleton while the initial account load is pending', async () => {
+    mockIsLoading = true;
+
+    const { getByText, queryByLabelText } = await render(
+      <ManualAddAccountScreen />
+    );
+
+    expect(getByText('Preparing saved accounts…')).toBeTruthy();
+    expect(queryByLabelText('Secret key')).toBeNull();
   });
 });

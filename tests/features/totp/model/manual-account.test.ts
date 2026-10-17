@@ -39,6 +39,27 @@ describe('manual account validation', () => {
     });
   });
 
+  it('allows the issuer to be omitted', () => {
+    expect(
+      validateManualAccount(
+        {
+          issuer: ' ',
+          label: ' user@example.com ',
+          secret: VALID_SECRET,
+          period: 30,
+          digits: 6
+        },
+        []
+      )
+    ).toMatchObject({
+      issuer: '',
+      label: 'user@example.com',
+      secret: VALID_SECRET,
+      error: null,
+      isValid: true
+    });
+  });
+
   it('requires an account label', () => {
     expect(
       validateManualAccount(
