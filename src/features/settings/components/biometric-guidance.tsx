@@ -95,19 +95,17 @@ export function BiometricGuidance({
               ? 'In device Settings, open Security or Biometrics and enroll a strong biometric method, such as a fingerprint. Return to Cody to try again.'
               : 'In device Settings, open Face ID & Passcode or Touch ID & Passcode and enroll your biometrics. Allow Face ID for Cody if requested, then return to try again. The button below opens Cody’s app settings.'}
           </Text>
-          {Platform.OS !== 'web' && (
-            <Button
-              variant="outline"
-              className="h-auto min-h-11 py-3"
-              onPress={() => void openSettings()}
-            >
-              <Text className="flex-1 text-center">
-                {Platform.OS === 'android'
-                  ? 'Open security settings'
-                  : 'Open Cody settings'}
-              </Text>
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            className="h-auto min-h-11 py-3"
+            onPress={() => void openSettings()}
+          >
+            <Text className="flex-1 text-center">
+              {Platform.OS === 'android'
+                ? 'Open security settings'
+                : 'Open Cody settings'}
+            </Text>
+          </Button>
           {checkMessage && (
             <Text
               accessibilityLiveRegion="polite"

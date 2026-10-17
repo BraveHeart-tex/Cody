@@ -3,6 +3,7 @@
     "name": "Cody",
     "slug": "cody",
     "version": "1.0.0",
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "backgroundColor": "#F9F8F6",

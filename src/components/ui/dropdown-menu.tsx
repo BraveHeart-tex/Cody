@@ -1,5 +1,4 @@
 import { Icon } from '@/components/ui/icon';
-import { NativeOnlyAnimatedView } from '@/components/ui/native-only-animated-view';
 import { Text, TextClassContext } from '@/components/ui/text';
 import { cn } from '@/lib/utils/cn';
 import { fontClassName } from '@/lib/utils/font-class-name';
@@ -30,7 +29,7 @@ import {
   View,
   type ViewStyle
 } from 'react-native';
-import { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { FullWindowOverlay as RNFullWindowOverlay } from 'react-native-screens';
 import { Fragment } from 'react/jsx-runtime';
 
@@ -71,7 +70,6 @@ function DropdownMenuSubTrigger({
       <DropdownMenuPrimitiveSubTrigger
         className={cn(
           'active:bg-accent group flex min-h-11 flex-row items-center rounded-sm px-2 py-2',
-          WEB_INTERACTION_STATES,
           className,
           open && 'bg-accent',
           inset && 'pl-8'
@@ -96,7 +94,7 @@ function DropdownMenuSubContent({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitiveSubContent>) {
   return (
-    <NativeOnlyAnimatedView entering={FadeIn}>
+    <Animated.View entering={FadeIn}>
       <DropdownMenuPrimitiveSubContent
         className={cn(
           'bg-popover border-border overflow-hidden rounded-lg border p-1',
@@ -104,16 +102,12 @@ function DropdownMenuSubContent({
         )}
         {...props}
       />
-    </NativeOnlyAnimatedView>
+    </Animated.View>
   );
 }
 
 const FullWindowOverlay =
   Platform.OS === 'ios' ? RNFullWindowOverlay : Fragment;
-
-const WEB_INTERACTION_STATES = Platform.select({
-  web: 'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:bg-accent'
-});
 
 function DropdownMenuContent({
   className,
@@ -140,7 +134,7 @@ function DropdownMenuContent({
           }
           className={overlayClassName}
         >
-          <NativeOnlyAnimatedView entering={FadeIn}>
+          <Animated.View entering={FadeIn}>
             <TextClassContext.Provider value="text-popover-foreground">
               <DropdownMenuPrimitiveContent
                 className={cn(
@@ -150,7 +144,7 @@ function DropdownMenuContent({
                 {...props}
               />
             </TextClassContext.Provider>
-          </NativeOnlyAnimatedView>
+          </Animated.View>
         </DropdownMenuPrimitiveOverlay>
       </FullWindowOverlay>
     </DropdownMenuPrimitivePortal>
@@ -178,7 +172,6 @@ function DropdownMenuItem({
       <DropdownMenuPrimitiveItem
         className={cn(
           'active:bg-accent group relative flex min-h-11 flex-row items-center gap-2 rounded-sm px-2 py-2',
-          WEB_INTERACTION_STATES,
           variant === 'destructive' &&
             'active:bg-destructive/10 dark:active:bg-destructive/20',
           props.disabled && 'opacity-50',
@@ -203,7 +196,6 @@ function DropdownMenuCheckboxItem({
       <DropdownMenuPrimitiveCheckboxItem
         className={cn(
           'active:bg-accent group relative flex min-h-11 flex-row items-center gap-2 rounded-sm py-2 pr-2 pl-8',
-          WEB_INTERACTION_STATES,
           props.disabled && 'opacity-50',
           className
         )}
@@ -232,7 +224,6 @@ function DropdownMenuRadioItem({
       <DropdownMenuPrimitiveRadioItem
         className={cn(
           'active:bg-accent group relative flex min-h-11 flex-row items-center gap-2 rounded-sm py-2 pr-2 pl-8',
-          WEB_INTERACTION_STATES,
           props.disabled && 'opacity-50',
           className
         )}
