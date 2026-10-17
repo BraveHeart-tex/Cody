@@ -18,7 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts(appFontAssets);
+  const [fontsLoaded, fontError] = useFonts(appFontAssets);
 
   const loadSettings = useSettingsStore(state => state.loadSettings);
   const loadStatus = useSettingsStore(state => state.loadStatus);
@@ -30,8 +30,8 @@ export default function RootLayout() {
   // Navigation and NativeWind both follow the applied native appearance.
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const theme = NAV_THEME[scheme];
-  const isReady =
-    fontsLoaded && (loadStatus === 'loaded' || loadStatus === 'failed');
+  const isReady = loadStatus === 'loaded' || loadStatus === 'failed';
+  const useSystemFontFallback = !fontsLoaded || fontError != null;
 
   useThemeMode(isReady);
 
@@ -40,14 +40,14 @@ export default function RootLayout() {
       headerShadowVisible: false,
       headerStyle: { backgroundColor: theme.colors.background },
       headerTitleStyle: {
-        fontFamily: appFonts.faces.semiBold,
+        fontFamily: useSystemFontFallback ? undefined : appFonts.faces.semiBold,
         fontWeight: 'normal' as const,
         fontSize: 17
       },
       headerTintColor: theme.colors.text,
       contentStyle: { backgroundColor: theme.colors.background }
     }),
-    [theme]
+    [theme, useSystemFontFallback]
   );
 
   useEffect(() => {
@@ -65,11 +65,8 @@ export default function RootLayout() {
   }, [isReady]);
 
   // Keep the security boundary mounted while settings retry. Unmounting it on
-  // `loading` would restart its load effect after every failed read.
-  if (!fontsLoaded) {
-    return null;
-  }
-
+  // `loading` would restart its load effect after every failed read. The app
+  // shell can render with platform fonts while custom fonts load or fail.
   return (
     <GestureHandlerRootView
       style={{ backgroundColor: theme.colors.background, flex: 1 }}

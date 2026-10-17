@@ -5,6 +5,8 @@ import { act, cleanup, render } from '@testing-library/react-native';
 let mockGateMounts = 0;
 let mockGateUnmounts = 0;
 let mockSettingsReads = 0;
+let mockFontsState: [boolean, Error | null] = [true, null];
+let mockSplashHideCalls = 0;
 
 jest.mock('@/global.css', () => ({}));
 jest.mock('@/features/app-lock/components/app-lock-gate', () => {
@@ -39,10 +41,12 @@ jest.mock('@/features/settings/storage/settings-storage', () => ({
 jest.mock('@/features/account/components/move-accounts-done-button', () => ({
   MoveAccountsDoneButton: () => null
 }));
-jest.mock('expo-font', () => ({ useFonts: () => [true] }));
+jest.mock('expo-font', () => ({ useFonts: () => mockFontsState }));
 jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: async () => undefined,
-  hideAsync: async () => undefined
+  hideAsync: async () => {
+    mockSplashHideCalls++;
+  }
 }));
 jest.mock('expo-system-ui', () => ({
   setBackgroundColorAsync: async () => undefined
@@ -92,10 +96,34 @@ afterEach(async () => {
   mockGateMounts = 0;
   mockGateUnmounts = 0;
   mockSettingsReads = 0;
+  mockFontsState = [true, null];
+  mockSplashHideCalls = 0;
   jest.clearAllMocks();
 });
 
 describe('root lock boundary', () => {
+  it.each([
+    ['loading', [false, null] as [boolean, Error | null]],
+    [
+      'failed',
+      [false, new Error('font load failed')] as [boolean, Error | null]
+    ]
+  ])('renders the app shell when fonts are %s', async (_state, fontsState) => {
+    resetSettingsStoreForTest();
+    useSettingsStore.setState({ loadStatus: 'loaded', isLoading: false });
+    mockFontsState = fontsState;
+
+    const screen = await render(<RootLayout />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('root-lock-gate')).toBeTruthy();
+    expect(mockGateMounts).toBe(1);
+    expect(mockSplashHideCalls).toBe(1);
+  });
+
   it('keeps the gate mounted through a settings retry loading state', async () => {
     resetSettingsStoreForTest();
     useSettingsStore.setState({

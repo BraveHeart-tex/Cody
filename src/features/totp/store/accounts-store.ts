@@ -202,8 +202,10 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           ),
           accountSecretLoading: omitKey(current.accountSecretLoading, id)
         });
-      } catch {
+      } catch (cause) {
         moveAccountToDamaged(set, get, id, 'read-failed');
+
+        throw toError(cause);
       } finally {
         accountSecretPromises.delete(id);
       }
