@@ -4,15 +4,6 @@
 @import 'nativewind/theme';
 
 @theme {
-  --font-sans: HankenGrotesk_400Regular;
-  --font-sans-medium: HankenGrotesk_500Medium;
-  --font-sans-semibold: HankenGrotesk_600SemiBold;
-  --font-sans-bold: HankenGrotesk_700Bold;
-  --font-sans-extrabold: HankenGrotesk_800ExtraBold;
-  --font-mono: JetBrainsMono_600SemiBold;
-  --font-mono-regular: JetBrainsMono_400Regular;
-  --font-mono-medium: JetBrainsMono_500Medium;
-
   --color-background: hsl(35 20% 97%);
   --color-foreground: hsl(35 10% 10%);
   --color-card: hsl(30 25% 99%);
@@ -42,6 +33,18 @@
 
   --radius: 0.75rem;
   --border-width-hairline: calc(1 / pixelRatio());
+}
+
+/* Inline faces bypass NativeWind's platform-specific font variable defaults. */
+@theme inline {
+  --font-sans: HankenGrotesk_400Regular;
+  --font-sans-medium: HankenGrotesk_500Medium;
+  --font-sans-semibold: HankenGrotesk_600SemiBold;
+  --font-sans-bold: HankenGrotesk_700Bold;
+  --font-sans-extrabold: HankenGrotesk_800ExtraBold;
+  --font-mono: JetBrainsMono_600SemiBold;
+  --font-mono-regular: JetBrainsMono_400Regular;
+  --font-mono-medium: JetBrainsMono_500Medium;
 }
 
 @media (prefers-color-scheme: dark) {
