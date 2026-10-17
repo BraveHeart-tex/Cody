@@ -22,3 +22,10 @@ No `tailwind.config.js` — tokens in `global.css` via `@theme`.
 After editing color tokens, run `pnpm theme:generate`.
 No `styled()`, no Babel plugin, no `remapProps`/`cssInterop` unless tier 2/3 above.
 No global `lineHeight` tokens. Use shared Text primitive.
+
+## Fonts
+
+Families, face names, and loading assets live in `src/theme/fonts.ts`.
+Use `appFonts.faces` / `monoFonts.faces` for native font references and
+`appFontAssets` for loading. Keep `--font-sans` / `--font-mono` in
+`src/global.css` aligned with the corresponding default faces.

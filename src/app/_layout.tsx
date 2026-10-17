@@ -2,14 +2,7 @@ import { MoveAccountsDoneButton } from '@/features/account/components/move-accou
 import { useSettingsStore } from '@/features/settings/store/settings-store';
 import '@/global.css';
 import { NAV_THEME } from '@/theme';
-import { HankenGrotesk_400Regular } from '@expo-google-fonts/hanken-grotesk/400Regular';
-import { HankenGrotesk_500Medium } from '@expo-google-fonts/hanken-grotesk/500Medium';
-import { HankenGrotesk_600SemiBold } from '@expo-google-fonts/hanken-grotesk/600SemiBold';
-import { HankenGrotesk_700Bold } from '@expo-google-fonts/hanken-grotesk/700Bold';
-import { HankenGrotesk_800ExtraBold } from '@expo-google-fonts/hanken-grotesk/800ExtraBold';
-import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono/400Regular';
-import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono/500Medium';
-import { JetBrainsMono_600SemiBold } from '@expo-google-fonts/jetbrains-mono/600SemiBold';
+import { appFontAssets, appFonts } from '@/theme/fonts';
 import { PortalHost } from '@rn-primitives/portal';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -23,16 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    HankenGrotesk_400Regular,
-    HankenGrotesk_500Medium,
-    HankenGrotesk_600SemiBold,
-    HankenGrotesk_700Bold,
-    HankenGrotesk_800ExtraBold,
-    JetBrainsMono_400Regular,
-    JetBrainsMono_500Medium,
-    JetBrainsMono_600SemiBold
-  });
+  const [fontsLoaded] = useFonts(appFontAssets);
 
   const loadSettings = useSettingsStore(state => state.loadSettings);
   const loadStatus = useSettingsStore(state => state.loadStatus);
@@ -81,7 +65,7 @@ export default function RootLayout() {
               backgroundColor: theme.colors.background
             },
             headerTitleStyle: {
-              fontFamily: 'HankenGrotesk_600SemiBold',
+              fontFamily: appFonts.faces.semiBold,
               fontSize: 17
             },
             headerTintColor: theme.colors.text,

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils/cn';
+import { monoFonts } from '@/theme/fonts';
 import { Slot } from '@rn-primitives/slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { createContext, useContext } from 'react';
@@ -78,7 +79,7 @@ function Text({
 
 const styles = StyleSheet.create({
   mono: {
-    fontFamily: 'JetBrainsMono_600SemiBold',
+    fontFamily: monoFonts.faces.semiBold,
     letterSpacing: 1,
     fontWeight: '600'
   }
