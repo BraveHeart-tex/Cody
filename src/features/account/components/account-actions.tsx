@@ -60,12 +60,6 @@ export function AccountActions({
             <Text className="text-base">Move</Text>
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem className="min-h-12 px-3">
-          <Text className="text-base">Rename</Text>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-12 px-3">
-          <Text className="text-base">Customize</Text>
-        </DropdownMenuItem>
         <DropdownMenuItem
           className="min-h-12 px-3"
           onPress={handleDeletePress}

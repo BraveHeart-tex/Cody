@@ -182,20 +182,23 @@ describe('AccountCard', () => {
   });
 
   it('shows passcode, dropdown, progress, and timer while active', async () => {
-    const { getByLabelText, getByTestId, getByText } = await render(
-      <AccountCard
-        account={account}
-        isActive
-        onDelete={jest.fn()}
-        onMove={jest.fn()}
-        onPress={jest.fn()}
-      />
-    );
+    const { getByLabelText, getByTestId, getByText, queryByText } =
+      await render(
+        <AccountCard
+          account={account}
+          isActive
+          onDelete={jest.fn()}
+          onMove={jest.fn()}
+          onPress={jest.fn()}
+        />
+      );
 
     expect(getByText('Passcode')).toBeTruthy();
     expect(getByText('123456')).toBeTruthy();
     expect(getByText('18s until refresh')).toBeTruthy();
     expect(getByText('Move')).toBeTruthy();
+    expect(queryByText('Rename')).toBeNull();
+    expect(queryByText('Customize')).toBeNull();
     expect(getByLabelText('Account actions')).toBeTruthy();
     expect(getByTestId('account-card-progress')).toBeTruthy();
   });
