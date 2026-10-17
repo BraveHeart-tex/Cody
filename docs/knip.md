@@ -4,3 +4,6 @@
 primitive API. Several variants are not used by current screens, but remain
 available for future feature UI. Knip's export ignore is scoped to this module
 so unused exports elsewhere remain visible.
+
+`src/theme/fonts.ts` exports font face constants referenced by `docs/styling.md`.
+Knip cannot see documentation references, so its exports are ignored there.

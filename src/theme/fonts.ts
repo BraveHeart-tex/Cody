@@ -18,7 +18,7 @@ export const appFonts = {
   }
 } as const;
 
-const monoFonts = {
+export const monoFonts = {
   family: 'JetBrains Mono',
   faces: {
     regular: 'JetBrainsMono_400Regular',
