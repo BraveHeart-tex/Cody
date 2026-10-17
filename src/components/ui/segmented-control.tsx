@@ -35,19 +35,35 @@ function SegmentedControl<T extends number | string>({
           <Button
             accessibilityState={{ selected: isSelected }}
             className={cn(
-              'flex-1',
+              'min-w-0 flex-1 px-2',
               IconComponent != null && 'h-20 flex-col gap-1.5 px-2 py-4',
-              isSelected && 'border-primary'
+              isSelected &&
+                'border-primary bg-accent dark:border-primary dark:bg-accent'
             )}
             disabled={disabled}
             key={option}
-            variant={isSelected ? 'default' : 'outline'}
+            variant="outline"
             onPress={() => onSelect(option)}
           >
             {IconComponent != null ? (
-              <Icon as={IconComponent} size={20} />
+              <Icon
+                as={IconComponent}
+                className={
+                  isSelected
+                    ? 'text-accent-foreground'
+                    : 'text-muted-foreground'
+                }
+                size={20}
+              />
             ) : null}
-            <Text>{labels?.[String(option)] ?? `${option}${suffix}`}</Text>
+            <Text
+              className={cn(
+                'text-center',
+                isSelected ? 'text-accent-foreground' : 'text-foreground'
+              )}
+            >
+              {labels?.[String(option)] ?? `${option}${suffix}`}
+            </Text>
           </Button>
         );
       })}

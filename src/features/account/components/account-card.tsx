@@ -52,13 +52,6 @@ export const AccountCard = memo(function AccountCard({
   const issuer = account.issuer || 'Unknown issuer';
   const initial = getAccountInitial(account);
 
-  const cardStyle = useMemo<ViewStyle>(
-    () => ({
-      borderTopColor: color
-    }),
-    [color]
-  );
-
   const iconStyle = useMemo<ViewStyle>(
     () => ({
       backgroundColor: color
@@ -78,10 +71,7 @@ export const AccountCard = memo(function AccountCard({
         accessibilityState={{ expanded: isActive }}
         onPress={handlePress}
       >
-        <Card
-          className="relative gap-4 rounded-lg border-0 border-t-4 px-0 py-4"
-          style={cardStyle}
-        >
+        <Card className="relative gap-4 px-0 py-4">
           <CardHeader className="px-4">
             <View className="flex-row items-center gap-3">
               <AccountInitial initial={initial} style={iconStyle} />
@@ -92,10 +82,7 @@ export const AccountCard = memo(function AccountCard({
                 >
                   {issuer}
                 </CardTitle>
-                <CardDescription
-                  className="text-sm font-medium tracking-wide"
-                  numberOfLines={1}
-                >
+                <CardDescription numberOfLines={1}>
                   {account.label}
                 </CardDescription>
               </View>

@@ -16,7 +16,7 @@ export function AccountSearchInput({
     <View className="relative w-full">
       <View
         accessibilityElementsHidden
-        className="absolute top-0 left-4 z-10 h-10 justify-center sm:h-9"
+        className="absolute top-0 left-4 z-10 h-11 justify-center"
         importantForAccessibility="no-hide-descendants"
       >
         <Icon as={SearchIcon} className="text-muted-foreground text-base" />

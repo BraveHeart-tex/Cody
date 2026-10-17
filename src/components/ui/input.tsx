@@ -1,5 +1,9 @@
 import { cn } from '@/lib/utils/cn';
-import { TextInput } from 'react-native';
+import { Platform, TextInput } from 'react-native';
+
+const WEB_INTERACTION_STATES = Platform.select({
+  web: 'outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+});
 
 function Input({
   className,
@@ -8,9 +12,10 @@ function Input({
   return (
     <TextInput
       className={cn(
-        'dark:bg-input/30 border-input bg-background text-foreground py- flex h-10 w-full min-w-0 flex-row items-center rounded-md border p-0 px-3 text-base leading-5 shadow-sm shadow-black/5 sm:h-9',
+        'dark:bg-input/30 border-input bg-background text-foreground focus:border-ring will-change-variable flex h-11 w-full min-w-0 flex-row items-center rounded-lg border p-0 px-3 font-sans text-base leading-5',
         props.editable === false && 'opacity-50',
-        'placeholder:text-muted-foreground/50',
+        'placeholder:text-muted-foreground',
+        WEB_INTERACTION_STATES,
         className
       )}
       {...props}

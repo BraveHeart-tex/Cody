@@ -140,7 +140,7 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
                 accessibilityLabel={
                   isSecretVisible ? 'Hide secret key' : 'Reveal secret key'
                 }
-                className="h-10 min-w-20"
+                className="min-w-20"
                 size="sm"
                 variant="outline"
                 onPress={() => setIsSecretVisible(current => !current)}

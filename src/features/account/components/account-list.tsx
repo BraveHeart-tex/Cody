@@ -223,7 +223,7 @@ function AccountListEmpty({
   return (
     <View className="flex-1 items-center justify-center px-2 py-10">
       <View className="w-full max-w-sm items-center gap-6">
-        <View className="border-border bg-card size-16 items-center justify-center rounded-full border shadow-sm shadow-black/5">
+        <View className="border-border bg-card size-16 items-center justify-center rounded-full border">
           <Icon as={ShieldCheckIcon} className="text-primary" size={28} />
         </View>
 

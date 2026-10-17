@@ -6,7 +6,11 @@ interface StatusMessageProps {
 
 function StatusMessage({ value }: StatusMessageProps) {
   return (
-    <Text className="bg-destructive text-destructive-foreground rounded-lg px-4 py-3 text-center text-base font-semibold">
+    <Text
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      className="bg-destructive/10 text-foreground border-destructive/30 rounded-lg border px-4 py-3 text-center text-sm leading-5 font-medium"
+    >
       {value}
     </Text>
   );

@@ -5,6 +5,7 @@
 
 @theme {
   --font-sans: HankenGrotesk_400Regular;
+  --font-sans-medium: HankenGrotesk_500Medium;
   --font-mono: JetBrainsMono_600SemiBold;
 
   --color-background: hsl(35 20% 97%);

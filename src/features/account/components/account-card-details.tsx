@@ -75,28 +75,29 @@ export function AccountCardDetails({
 
   return (
     <CardContent className="gap-4 px-4">
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="w-full min-w-0 flex-1 flex-row items-center">
-          <Text className="text-base">Passcode</Text>
+      <View className="gap-2">
+        <Text className="text-muted-foreground text-sm">Passcode</Text>
+        <View className="flex-row items-center gap-2">
           <Text
-            className="text-foreground min-w-0 flex-1 text-center font-mono text-3xl font-semibold tracking-widest!"
+            adjustsFontSizeToFit
+            className="text-foreground min-w-0 flex-1 text-left font-mono text-3xl"
+            minimumFontScale={0.75}
             numberOfLines={1}
           >
             {code}
           </Text>
+          <Button
+            accessibilityLabel={
+              isCopied ? 'Passcode copied' : `Copy ${issuer} passcode`
+            }
+            onPress={handleCopyPress}
+            size="icon"
+            testID="account-card-copy"
+            variant="ghost"
+          >
+            <Icon as={isCopied ? CheckIcon : CopyIcon} />
+          </Button>
         </View>
-
-        <Button
-          accessibilityLabel={
-            isCopied ? 'Passcode copied' : `Copy ${issuer} passcode`
-          }
-          onPress={handleCopyPress}
-          size="icon"
-          testID="account-card-copy"
-          variant="ghost"
-        >
-          <Icon as={isCopied ? CheckIcon : CopyIcon} />
-        </Button>
       </View>
 
       <AccountCountdownProgress

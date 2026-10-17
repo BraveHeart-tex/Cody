@@ -16,7 +16,7 @@ function Switch({
   return (
     <SwitchPrimitives.Root
       className={cn(
-        'flex h-6 w-11 shrink-0 flex-row items-center rounded-full border border-transparent p-0.5 shadow-sm shadow-black/5',
+        'flex h-6 w-11 shrink-0 flex-row items-center rounded-full border border-transparent p-0.5',
         Platform.select({
           web: 'focus-visible:border-ring focus-visible:ring-ring/50 peer inline-flex transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed'
         }),

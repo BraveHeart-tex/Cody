@@ -69,7 +69,8 @@ function DropdownMenuSubTrigger({
     >
       <DropdownMenuPrimitiveSubTrigger
         className={cn(
-          'active:bg-accent group flex flex-row items-center rounded-sm px-2 py-2 sm:py-1.5',
+          'active:bg-accent group flex min-h-11 flex-row items-center rounded-sm px-2 py-2',
+          WEB_INTERACTION_STATES,
           className,
           open && 'bg-accent',
           inset && 'pl-8'
@@ -97,7 +98,7 @@ function DropdownMenuSubContent({
     <NativeOnlyAnimatedView entering={FadeIn}>
       <DropdownMenuPrimitiveSubContent
         className={cn(
-          'bg-popover border-border overflow-hidden rounded-md border p-1 shadow-lg shadow-black/5',
+          'bg-popover border-border overflow-hidden rounded-lg border p-1',
           className
         )}
         {...props}
@@ -108,6 +109,10 @@ function DropdownMenuSubContent({
 
 const FullWindowOverlay =
   Platform.OS === 'ios' ? RNFullWindowOverlay : Fragment;
+
+const WEB_INTERACTION_STATES = Platform.select({
+  web: 'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:bg-accent'
+});
 
 function DropdownMenuContent({
   className,
@@ -138,7 +143,7 @@ function DropdownMenuContent({
             <TextClassContext.Provider value="text-popover-foreground">
               <DropdownMenuPrimitiveContent
                 className={cn(
-                  'bg-popover border-border min-w-32 overflow-hidden rounded-md border p-1 shadow-lg shadow-black/5',
+                  'bg-popover border-border min-w-32 overflow-hidden rounded-lg border p-1',
                   className
                 )}
                 {...props}
@@ -171,7 +176,8 @@ function DropdownMenuItem({
     >
       <DropdownMenuPrimitiveItem
         className={cn(
-          'active:bg-accent group relative flex flex-row items-center gap-2 rounded-sm px-2 py-2 sm:py-1.5',
+          'active:bg-accent group relative flex min-h-11 flex-row items-center gap-2 rounded-sm px-2 py-2',
+          WEB_INTERACTION_STATES,
           variant === 'destructive' &&
             'active:bg-destructive/10 dark:active:bg-destructive/20',
           props.disabled && 'opacity-50',
@@ -195,7 +201,8 @@ function DropdownMenuCheckboxItem({
     <TextClassContext.Provider value="text-sm text-popover-foreground select-none group-active:text-accent-foreground">
       <DropdownMenuPrimitiveCheckboxItem
         className={cn(
-          'active:bg-accent group relative flex flex-row items-center gap-2 rounded-sm py-2 pr-2 pl-8 sm:py-1.5',
+          'active:bg-accent group relative flex min-h-11 flex-row items-center gap-2 rounded-sm py-2 pr-2 pl-8',
+          WEB_INTERACTION_STATES,
           props.disabled && 'opacity-50',
           className
         )}
@@ -223,7 +230,8 @@ function DropdownMenuRadioItem({
     <TextClassContext.Provider value="text-sm text-popover-foreground select-none group-active:text-accent-foreground">
       <DropdownMenuPrimitiveRadioItem
         className={cn(
-          'active:bg-accent group relative flex flex-row items-center gap-2 rounded-sm py-2 pr-2 pl-8 sm:py-1.5',
+          'active:bg-accent group relative flex min-h-11 flex-row items-center gap-2 rounded-sm py-2 pr-2 pl-8',
+          WEB_INTERACTION_STATES,
           props.disabled && 'opacity-50',
           className
         )}

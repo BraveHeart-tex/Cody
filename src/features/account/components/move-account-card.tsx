@@ -23,13 +23,6 @@ export const MoveAccountCard = memo(function MoveAccountCard({
   const issuer = account.issuer || 'Unknown issuer';
   const initial = getAccountInitial(account);
 
-  const cardStyle = useMemo<ViewStyle>(
-    () => ({
-      borderTopColor: color
-    }),
-    [color]
-  );
-
   const iconStyle = useMemo<ViewStyle>(
     () => ({
       backgroundColor: color
@@ -39,8 +32,7 @@ export const MoveAccountCard = memo(function MoveAccountCard({
 
   return (
     <Card
-      className="relative rounded-lg border-0 border-t-4 px-0 py-4"
-      style={cardStyle}
+      className="relative px-0 py-4"
       testID={`move-account-card-${account.id}`}
     >
       <CardHeader className="px-4">
@@ -60,12 +52,7 @@ export const MoveAccountCard = memo(function MoveAccountCard({
               {issuer}
             </CardTitle>
 
-            <CardDescription
-              className="text-sm font-medium tracking-wide"
-              numberOfLines={1}
-            >
-              {account.label}
-            </CardDescription>
+            <CardDescription numberOfLines={1}>{account.label}</CardDescription>
           </View>
 
           <Sortable.Handle>

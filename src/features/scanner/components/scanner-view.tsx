@@ -171,32 +171,34 @@ function ScannerFooter({
 
   return (
     <View
-      className="bg-background/70 absolute inset-x-0 bottom-0 gap-4 px-6 pt-6 pb-12"
+      className="bg-background pb-safe absolute inset-x-0 bottom-0"
       onLayout={onLayout}
     >
-      <Text className="text-foreground text-center text-lg font-semibold">
-        Scan authenticator QR code
-      </Text>
-      <Text className="text-muted-foreground text-center text-sm leading-5">
-        Position the TOTP QR code inside the camera view.
-      </Text>
-      {error != null ? (
-        <View className="bg-card gap-3 rounded-lg px-4 py-4">
-          <Text className="text-destructive text-center text-base font-semibold">
-            {error}
-          </Text>
-          <Button onPress={handleRetryScan}>
-            <Text>Scan Again</Text>
-          </Button>
-        </View>
-      ) : null}
-      {cameraError != null ? (
-        <View className="bg-card rounded-lg px-4 py-4">
-          <Text className="text-destructive text-center text-base font-semibold">
-            {cameraError}
-          </Text>
-        </View>
-      ) : null}
+      <View className="gap-4 px-6 pt-6 pb-6">
+        <Text className="text-foreground text-center text-lg font-semibold">
+          Scan authenticator QR code
+        </Text>
+        <Text className="text-muted-foreground text-center text-sm leading-5">
+          Position the TOTP QR code inside the camera view.
+        </Text>
+        {error != null ? (
+          <View className="bg-card gap-3 rounded-lg px-4 py-4">
+            <Text className="text-destructive text-center text-base font-semibold">
+              {error}
+            </Text>
+            <Button onPress={handleRetryScan}>
+              <Text>Scan Again</Text>
+            </Button>
+          </View>
+        ) : null}
+        {cameraError != null ? (
+          <View className="bg-card rounded-lg px-4 py-4">
+            <Text className="text-destructive text-center text-base font-semibold">
+              {cameraError}
+            </Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
