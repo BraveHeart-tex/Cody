@@ -109,6 +109,53 @@ function seedLoadedSettings(requireBiometrics: boolean) {
 }
 
 describe('AppLockGate', () => {
+  it.each<
+    [
+      'initializing' | 'load-error' | 'locked',
+      boolean,
+      string | null,
+      'lock' | 'attention'
+    ]
+  >([
+    ['initializing', false, 'Old failure', 'lock'],
+    ['load-error', false, null, 'attention'],
+    ['locked', false, null, 'lock'],
+    ['locked', false, 'Authentication failed', 'attention'],
+    ['locked', true, 'Old failure', 'lock']
+  ])(
+    'uses %s / authenticating=%s / failure=%s artwork without exposing content',
+    async (status, isAuthenticating, failureMessage, variant) => {
+      useAppLockStore.setState({
+        status,
+        appState: 'active',
+        isAuthenticating,
+        failureMessage,
+        hasUnlocked: false,
+        retrySettings: async () => undefined,
+        onAppStateChange: () => undefined,
+        authenticate: async () => false
+      });
+
+      const screen = await render(
+        <AppLockGate>
+          <DraftScreen />
+        </AppLockGate>
+      );
+
+      expect(screen.queryByTestId('protected-screen')).toBeNull();
+      expect(
+        screen.getByTestId(`security-illustration-${variant}`, {
+          includeHiddenElements: true
+        }).props
+      ).toMatchObject({
+        accessible: false,
+        accessibilityElementsHidden: true,
+        importantForAccessibility: 'no-hide-descendants',
+        pointerEvents: 'none'
+      });
+    }
+  );
+
   it('keeps cold-start protected content unmounted until automatic authentication succeeds', async () => {
     mockGetSettings = async () => ({
       requireBiometrics: true,

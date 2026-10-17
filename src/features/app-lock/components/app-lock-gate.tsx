@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AppState, BackHandler, Keyboard, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { SecurityIllustration } from '@/components/ui/security-illustration';
 import { Text } from '@/components/ui/text';
 import { useAppLockStore } from '@/features/app-lock/store/app-lock-store';
 import { cn } from '@/lib/utils/cn';
@@ -69,7 +70,17 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
           className="bg-background absolute inset-0 z-50 items-center justify-center px-8"
           accessibilityViewIsModal
         >
-          <Text className="text-center text-xl font-semibold">
+          <View className="mb-6">
+            <SecurityIllustration
+              variant={
+                status === 'load-error' ||
+                (status === 'locked' && !isAuthenticating && !!failureMessage)
+                  ? 'attention'
+                  : 'lock'
+              }
+            />
+          </View>
+          <Text className="w-full text-center text-xl font-semibold">
             {status === 'initializing'
               ? 'Loading security settings…'
               : status === 'load-error'
@@ -77,7 +88,7 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
                 : 'Cody is locked'}
           </Text>
           {!!failureMessage && (
-            <Text className="text-muted-foreground mt-3 text-center">
+            <Text className="text-muted-foreground mt-3 w-full text-center">
               {failureMessage}
             </Text>
           )}
@@ -91,12 +102,12 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
             </Button>
           ) : status === 'locked' && appState === 'active' ? (
             <Button
-              className="mt-6"
+              className="mt-6 h-auto min-h-11 w-full max-w-xs"
               variant="outline"
               disabled={isAuthenticating}
               onPress={() => void authenticate(true)}
             >
-              <Text>
+              <Text className="flex-1 text-center">
                 {isAuthenticating
                   ? 'Authenticating…'
                   : 'Unlock with biometrics'}

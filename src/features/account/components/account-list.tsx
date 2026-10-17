@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { SecurityIllustration } from '@/components/ui/security-illustration';
 import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { AccountCard } from '@/features/account/components/account-card';
@@ -14,12 +15,10 @@ import {
 } from '@/features/totp/storage/totp-storage';
 import { router } from 'expo-router';
 import {
-  DatabaseIcon,
   KeyboardIcon,
   PlusIcon,
   QrCodeIcon,
   SearchIcon,
-  ShieldAlertIcon,
   ShieldCheckIcon
 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
@@ -405,13 +404,7 @@ function AccountListError({
   return (
     <View className="flex-1 items-start justify-center px-1 py-6">
       <View className="border-border bg-card w-full items-center gap-5 rounded-xl border px-4 py-6">
-        <AccountStateIllustration size="error">
-          <Icon
-            as={isCorrupt ? ShieldAlertIcon : DatabaseIcon}
-            className="text-primary"
-            size={34}
-          />
-        </AccountStateIllustration>
+        <SecurityIllustration variant="attention" />
         <View className="items-center gap-2">
           <Text className="text-foreground text-center text-2xl font-semibold">
             {isCorrupt
@@ -459,14 +452,14 @@ function AccountStateIllustration({
   size = 'default'
 }: {
   children: React.ReactNode;
-  size?: 'default' | 'compact' | 'error';
+  size?: 'default' | 'compact';
 }) {
   return (
     <View
-      className={`bg-accent/35 items-center justify-center rounded-full ${size === 'error' ? 'size-28' : size === 'compact' ? 'size-32' : 'size-36'}`}
+      className={`bg-accent/35 items-center justify-center rounded-full ${size === 'compact' ? 'size-32' : 'size-36'}`}
     >
       <View
-        className={`bg-accent items-center justify-center rounded-full ${size === 'default' ? 'size-24' : size === 'compact' ? 'size-20' : 'size-18'}`}
+        className={`bg-accent items-center justify-center rounded-full ${size === 'default' ? 'size-24' : 'size-20'}`}
       >
         {children}
       </View>
