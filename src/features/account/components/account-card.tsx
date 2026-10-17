@@ -58,7 +58,7 @@ export const AccountCard = memo(function AccountCard({
 
   useEffect(() => {
     if (isActive && account.secret == null) {
-      void onLoadSecret?.(account.id);
+      void onLoadSecret?.(account.id).catch(() => undefined);
     }
   }, [account.id, account.secret, isActive, onLoadSecret]);
 

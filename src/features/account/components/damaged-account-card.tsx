@@ -62,6 +62,7 @@ export function DamagedAccountCard({
   const title = account.record?.issuer ?? 'Saved account needs attention';
   const subtitle = account.record?.label ?? `Account ID ${account.id}`;
   const hasInvalidAccountId = account.reason === 'invalid-account-id';
+  const hasMissingSecret = account.reason === 'missing-secret';
 
   return (
     <Card className="gap-3 rounded-lg px-4 py-4">
@@ -74,7 +75,7 @@ export function DamagedAccountCard({
       </Text>
       {actionError != null ? <StatusMessage value={actionError} /> : null}
       <View className={hasInvalidAccountId ? 'flex-col' : 'flex-row gap-3'}>
-        {hasInvalidAccountId ? null : (
+        {hasInvalidAccountId || hasMissingSecret ? null : (
           <Button
             accessibilityLabel={`Retry recovery of ${title}`}
             className="flex-1"
@@ -109,7 +110,7 @@ function getIssueDescription(account: DamagedAccount): string {
     case 'invalid-account-id':
       return 'This account ID cannot be used for secure storage. Remove this entry and add the account again with its original setup key or QR code.';
     case 'missing-secret':
-      return 'The saved secret is missing. Retry, or remove this entry and add the account again with its setup key or QR code.';
+      return 'Cody cannot access this account’s saved secret on this device. Remove this entry and add the account again with its original setup key or QR code.';
     case 'read-failed':
       return 'Cody could not read this account. Retry, or remove this entry and add the account again with its setup key or QR code.';
     case 'write-recovery-failed':

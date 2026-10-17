@@ -94,7 +94,48 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
       const snapshot = await getAllAccounts();
       const journal = recoveryFailed ? await getAccountWriteJournal() : null;
 
-      commitSnapshot(set, snapshot, journal);
+      // SecureStore is excluded from Android backup, while account metadata is
+      // restored from AsyncStorage. Check each restored record before showing
+      // the list so unavailable secrets are represented as damaged accounts.
+      const secretChecks = await Promise.all(
+        snapshot.accounts.map(async account => {
+          try {
+            const secret = await getSecret(account.id);
+
+            return secret == null
+              ? {
+                  damagedAccount: {
+                    id: account.id,
+                    record: toAccountRecord(account),
+                    reason: 'missing-secret' as const
+                  }
+                }
+              : { account };
+          } catch {
+            return {
+              damagedAccount: {
+                id: account.id,
+                record: toAccountRecord(account),
+                reason: 'read-failed' as const
+              }
+            };
+          }
+        })
+      );
+      const checkedSnapshot: AccountsStorageSnapshot = {
+        ...snapshot,
+        accounts: secretChecks.flatMap(check =>
+          check.account == null ? [] : [check.account]
+        ),
+        damagedAccounts: [
+          ...snapshot.damagedAccounts,
+          ...secretChecks.flatMap(check =>
+            check.damagedAccount == null ? [] : [check.damagedAccount]
+          )
+        ]
+      };
+
+      commitSnapshot(set, checkedSnapshot, journal);
     })().catch(cause => {
       const loadError = toError(cause);
 

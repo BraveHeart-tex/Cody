@@ -121,7 +121,7 @@ describe('accounts store', () => {
     mockGetAllAccounts.mockResolvedValue(createSnapshot([]));
     mockRecoverAccountWriteJournal.mockResolvedValue(undefined);
     mockGetAccountWriteJournal.mockResolvedValue(null);
-    mockGetSecret.mockResolvedValue(null);
+    mockGetSecret.mockResolvedValue(account.secret);
     mockSaveAccountWriteJournal.mockResolvedValue(undefined);
     mockApplyAccountWriteJournal.mockImplementation(async journal => {
       if (journal.kind === 'remove') {
@@ -187,36 +187,62 @@ describe('accounts store', () => {
     });
   });
 
-  it('loads an account secret only when requested', async () => {
+  it('checks secrets at startup but only loads readable secrets when requested', async () => {
     const { secret: _secret, ...metadata } = account;
 
     mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([metadata]));
-    mockGetSecret.mockResolvedValueOnce(account.secret);
+    mockGetSecret
+      .mockResolvedValueOnce(account.secret)
+      .mockResolvedValueOnce(account.secret);
 
     await useAccountsStore.getState().loadAccounts();
 
     expect(useAccountsStore.getState().accounts).toEqual([metadata]);
-    expect(mockGetSecret).not.toHaveBeenCalled();
+    expect(mockGetSecret).toHaveBeenCalledTimes(1);
+    expect(mockGetSecret).toHaveBeenCalledWith(account.id);
 
     await useAccountsStore.getState().loadAccountSecret(account.id);
 
-    expect(mockGetSecret).toHaveBeenCalledWith(account.id);
+    expect(mockGetSecret).toHaveBeenCalledTimes(2);
     expect(useAccountsStore.getState().accounts).toEqual([account]);
   });
 
-  it('marks a missing deferred secret as a damaged account', async () => {
+  it('shows account metadata as damaged at startup when its secret is missing', async () => {
     const { secret: _secret, ...metadata } = account;
 
     mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([metadata]));
     mockGetSecret.mockResolvedValueOnce(null);
 
     await useAccountsStore.getState().loadAccounts();
-    await useAccountsStore.getState().loadAccountSecret(account.id);
 
     expect(useAccountsStore.getState().accounts).toEqual([]);
     expect(useAccountsStore.getState().damagedAccounts).toEqual([
       { id: account.id, record: metadata, reason: 'missing-secret' }
     ]);
+  });
+
+  it('keeps other accounts available when a startup secret read fails', async () => {
+    const { secret: _secret, ...metadata } = account;
+    const { secret: _secondSecret, ...secondMetadata } = secondAccount;
+
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([metadata, secondMetadata])
+    );
+    mockGetSecret
+      .mockRejectedValueOnce(new Error('secure store unavailable'))
+      .mockResolvedValueOnce(secondAccount.secret);
+
+    await useAccountsStore.getState().loadAccounts();
+
+    expect(useAccountsStore.getState().accounts).toEqual([secondMetadata]);
+    expect(useAccountsStore.getState().damagedAccounts).toEqual([
+      { id: account.id, record: metadata, reason: 'read-failed' }
+    ]);
+    expect(useAccountsStore.getState()).toMatchObject({
+      error: null,
+      isLoading: false,
+      loadStatus: 'loaded'
+    });
   });
 
   it('sets error state after a failed load and allows a later retry', async () => {
