@@ -9,6 +9,7 @@ import {
 } from '@jest/globals';
 
 import type { UpdateAccountInput } from '@/features/totp/hooks/use-accounts';
+import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
 import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 jest.mock('@/features/totp/storage/totp-storage', () => ({
@@ -21,26 +22,42 @@ jest.mock('@/features/totp/storage/totp-storage', () => ({
       this.rawValue = mockRawValue;
     }
   },
+  applyAccountWriteJournal: jest.fn(),
   archiveCorruptAccountIndex: jest.fn(),
+  clearAccountWriteJournal: jest.fn(),
+  deleteAccountData: jest.fn(),
   deleteAccountRecord: jest.fn(),
   deleteSecret: jest.fn(),
+  getAccountWriteJournal: jest.fn(),
   getAccountFromStores: jest.fn(),
   getAllAccounts: jest.fn(),
+  getStagedAccountSecret: jest.fn(),
+  recoverAccountWriteJournal: jest.fn(),
+  saveAccountWriteJournal: jest.fn(),
   setAccountIndex: jest.fn(),
   setAccountRecord: jest.fn(),
-  setSecret: jest.fn()
+  setSecret: jest.fn(),
+  setStagedAccountSecret: jest.fn()
 }));
 
 import {
+  applyAccountWriteJournal,
   CorruptAccountIndexError,
   archiveCorruptAccountIndex,
+  clearAccountWriteJournal,
+  deleteAccountData,
   deleteAccountRecord,
   deleteSecret,
   getAccountFromStores,
+  getAccountWriteJournal,
   getAllAccounts,
+  getStagedAccountSecret,
+  recoverAccountWriteJournal,
+  saveAccountWriteJournal,
   setAccountIndex,
   setAccountRecord,
-  setSecret
+  setSecret,
+  setStagedAccountSecret
 } from '@/features/totp/storage/totp-storage';
 import {
   resetAccountsStoreForTest,
@@ -49,12 +66,20 @@ import {
 
 const mockDeleteAccountRecord = jest.mocked(deleteAccountRecord);
 const mockDeleteSecret = jest.mocked(deleteSecret);
+const mockDeleteAccountData = jest.mocked(deleteAccountData);
 const mockArchiveCorruptAccountIndex = jest.mocked(archiveCorruptAccountIndex);
 const mockGetAccountFromStores = jest.mocked(getAccountFromStores);
 const mockGetAllAccounts = jest.mocked(getAllAccounts);
 const mockSetAccountIndex = jest.mocked(setAccountIndex);
 const mockSetAccountRecord = jest.mocked(setAccountRecord);
 const mockSetSecret = jest.mocked(setSecret);
+const mockRecoverAccountWriteJournal = jest.mocked(recoverAccountWriteJournal);
+const mockGetAccountWriteJournal = jest.mocked(getAccountWriteJournal);
+const mockSaveAccountWriteJournal = jest.mocked(saveAccountWriteJournal);
+const mockApplyAccountWriteJournal = jest.mocked(applyAccountWriteJournal);
+const mockClearAccountWriteJournal = jest.mocked(clearAccountWriteJournal);
+const mockGetStagedAccountSecret = jest.mocked(getStagedAccountSecret);
+const mockSetStagedAccountSecret = jest.mocked(setStagedAccountSecret);
 
 const account = createAccount({
   id: 'account-id',
@@ -84,14 +109,49 @@ const damagedAccount = {
 
 describe('accounts store', () => {
   beforeEach(() => {
+    let stagedSecret: string | null = null;
+
     resetAccountsStoreForTest();
     mockGetAllAccounts.mockResolvedValue(createSnapshot([]));
+    mockRecoverAccountWriteJournal.mockResolvedValue(undefined);
+    mockGetAccountWriteJournal.mockResolvedValue(null);
+    mockSaveAccountWriteJournal.mockResolvedValue(undefined);
+    mockApplyAccountWriteJournal.mockImplementation(async journal => {
+      if (journal.kind === 'remove') {
+        await mockDeleteAccountData(journal.removeAccountId as string);
+      } else {
+        for (const record of journal.records) {
+          await mockSetAccountRecord(record);
+        }
+
+        if (journal.secretAccountId != null) {
+          const stagedSecret = await mockGetStagedAccountSecret();
+
+          if (stagedSecret != null) {
+            await mockSetSecret(journal.secretAccountId, stagedSecret);
+          }
+        }
+      }
+
+      await mockSetAccountIndex(journal.accountIds);
+      await mockClearAccountWriteJournal();
+    });
+    mockClearAccountWriteJournal.mockImplementation(async () => {
+      stagedSecret = null;
+    });
+    mockGetStagedAccountSecret.mockImplementation(async () => stagedSecret);
+    mockSetStagedAccountSecret.mockImplementation(async secret => {
+      stagedSecret = secret;
+    });
     mockGetAccountFromStores.mockResolvedValue(damagedAccount);
     mockSetAccountRecord.mockResolvedValue(undefined);
     mockSetSecret.mockResolvedValue(undefined);
     mockSetAccountIndex.mockResolvedValue(undefined);
     mockDeleteAccountRecord.mockResolvedValue(undefined);
     mockDeleteSecret.mockResolvedValue(undefined);
+    mockDeleteAccountData.mockImplementation(async id => {
+      await Promise.all([mockDeleteAccountRecord(id), mockDeleteSecret(id)]);
+    });
     mockArchiveCorruptAccountIndex.mockResolvedValue(undefined);
   });
 
@@ -145,7 +205,7 @@ describe('accounts store', () => {
   });
 
   it('retries only the selected damaged account', async () => {
-    mockGetAllAccounts.mockResolvedValueOnce(
+    mockGetAllAccounts.mockResolvedValue(
       createSnapshot([account], [damagedAccount])
     );
     mockGetAccountFromStores.mockResolvedValueOnce(secondAccount);
@@ -205,6 +265,7 @@ describe('accounts store', () => {
       id: 'new-account-id',
       issuer: 'Linear',
       label: 'new@example.com',
+      secret: 'MFRGGZDFMZTWQ2LK',
       sortOrder: 0
     });
 
@@ -274,6 +335,7 @@ describe('accounts store', () => {
       id: 'new-account-id',
       issuer: 'Linear',
       label: 'new@example.com',
+      secret: 'MFRGGZDFMZTWQ2LK',
       sortOrder: 99
     });
 
@@ -322,6 +384,124 @@ describe('accounts store', () => {
     );
     expect(mockSetAccountRecord).not.toHaveBeenCalledWith(
       expect.objectContaining({ id: 'wrong-id' })
+    );
+  });
+
+  it('rejects duplicate normalized secrets when adding an account', async () => {
+    const existingAccount = {
+      ...account,
+      secret: 'MY'
+    };
+    const duplicateAccount = createAccount({
+      id: 'duplicate-id',
+      issuer: 'Different issuer',
+      label: 'different@example.com',
+      secret: ' MY====== ',
+      sortOrder: 0
+    });
+
+    mockGetAllAccounts.mockResolvedValue(createSnapshot([existingAccount]));
+
+    await useAccountsStore.getState().loadAccounts();
+    await expect(
+      useAccountsStore.getState().addAccount(duplicateAccount)
+    ).rejects.toBeInstanceOf(DuplicateAccountSecretError);
+
+    expect(useAccountsStore.getState().accounts).toEqual([existingAccount]);
+    expect(mockSetAccountRecord).not.toHaveBeenCalled();
+  });
+
+  it('rejects the later of two concurrent adds with the same secret', async () => {
+    const first = createAccount({
+      id: 'first-duplicate-id',
+      issuer: 'GitHub',
+      label: 'first@example.com',
+      secret: 'GEZDGNBVGY3TQOJQ',
+      sortOrder: 0
+    });
+    const second = createAccount({
+      id: 'second-duplicate-id',
+      issuer: 'Dropbox',
+      label: 'second@example.com',
+      secret: ' gezd gnbv gy3t qojq ',
+      sortOrder: 0
+    });
+
+    const results = await Promise.allSettled([
+      useAccountsStore.getState().addAccount(first),
+      useAccountsStore.getState().addAccount(second)
+    ]);
+
+    expect(results.map(result => result.status)).toEqual([
+      'fulfilled',
+      'rejected'
+    ]);
+    expect(results[1]).toMatchObject({
+      reason: expect.any(DuplicateAccountSecretError)
+    });
+    expect(mockSetAccountRecord).toHaveBeenCalledTimes(1);
+    expect(mockSetAccountRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ id: first.id })
+    );
+    expect(mockSetAccountIndex).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes a new account secret before storing it', async () => {
+    const incomingAccount = createAccount({
+      id: 'normalized-id',
+      issuer: 'Linear',
+      label: 'new@example.com',
+      secret: ' mfrg gzdf mztw q2lk ',
+      sortOrder: 0
+    });
+
+    await useAccountsStore.getState().addAccount(incomingAccount);
+
+    expect(useAccountsStore.getState().accounts[0]?.secret).toBe(
+      'MFRGGZDFMZTWQ2LK'
+    );
+    expect(mockSetSecret).toHaveBeenCalledWith(
+      'normalized-id',
+      'MFRGGZDFMZTWQ2LK'
+    );
+  });
+
+  it('rejects an update that changes a secret to another account secret', async () => {
+    const firstAccount = { ...account, secret: 'GEZDGNBVGY3TQOJQ' };
+    const otherAccount = {
+      ...secondAccount,
+      secret: 'MFRGGZDFMZTWQ2LK'
+    };
+
+    mockGetAllAccounts.mockResolvedValue(
+      createSnapshot([firstAccount, otherAccount])
+    );
+
+    await useAccountsStore.getState().loadAccounts();
+    await expect(
+      useAccountsStore.getState().updateAccount(firstAccount.id, {
+        secret: ' mfrg gzdf mztw q2lk '
+      })
+    ).rejects.toBeInstanceOf(DuplicateAccountSecretError);
+
+    expect(useAccountsStore.getState().accounts).toEqual([
+      firstAccount,
+      otherAccount
+    ]);
+  });
+
+  it('allows an update to retain its own secret and normalizes changed secrets', async () => {
+    const initial = { ...account, secret: ' gezd gnbv gy3t qojq ' };
+
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([initial]));
+
+    await useAccountsStore.getState().loadAccounts();
+    await useAccountsStore.getState().updateAccount(account.id, {
+      secret: ' gezd gnbv gy3t qojq '
+    });
+
+    expect(useAccountsStore.getState().accounts[0]?.secret).toBe(
+      'GEZDGNBVGY3TQOJQ'
     );
   });
 
@@ -375,12 +555,14 @@ describe('accounts store', () => {
       id: 'first-added-id',
       issuer: 'Linear',
       label: 'first@example.com',
+      secret: 'GEZDGNBVGY3TQOJQ',
       sortOrder: 0
     });
     const secondAddedAccount = createAccount({
       id: 'second-added-id',
       issuer: 'Slack',
       label: 'second@example.com',
+      secret: 'MFRGGZDFMZTWQ2LK',
       sortOrder: 0
     });
 
@@ -404,7 +586,7 @@ describe('accounts store', () => {
   it('keeps current state when a mutation fails before commit', async () => {
     const storageError = new Error('index failed');
 
-    mockGetAllAccounts.mockResolvedValueOnce(
+    mockGetAllAccounts.mockResolvedValue(
       createSnapshot([account, secondAccount])
     );
     mockSetAccountIndex.mockRejectedValueOnce(storageError);
@@ -416,10 +598,10 @@ describe('accounts store', () => {
 
     expect(useAccountsStore.getState()).toMatchObject({
       accounts: [account, secondAccount],
-      error: storageError
+      error: null
     });
-    expect(mockDeleteAccountRecord).not.toHaveBeenCalled();
-    expect(mockDeleteSecret).not.toHaveBeenCalled();
+    expect(mockDeleteAccountRecord).toHaveBeenCalledWith('account-id');
+    expect(mockDeleteSecret).toHaveBeenCalledWith('account-id');
   });
 });
 
@@ -427,18 +609,20 @@ function createAccount({
   id,
   issuer,
   label,
+  secret = 'JBSWY3DPEHPK3PXP',
   sortOrder
 }: {
   id: string;
   issuer: string;
   label: string;
+  secret?: string;
   sortOrder: number;
 }): OtpAccount {
   return {
     id,
     issuer,
     label,
-    secret: 'JBSWY3DPEHPK3PXP',
+    secret,
     type: 'totp',
     algorithm: 'SHA1',
     digits: 6,

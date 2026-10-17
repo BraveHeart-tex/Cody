@@ -16,6 +16,7 @@ import {
 import { router } from 'expo-router';
 
 import type { UseAccountsResult } from '@/features/totp/hooks/use-accounts';
+import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
 import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
 
@@ -196,6 +197,21 @@ describe('AccountConfirmScreen', () => {
     ).toBeTruthy();
     await fireEvent.press(getByText('Save Account'));
     expect(mockAddAccount).not.toHaveBeenCalled();
+    expect(mockDeleteScannerDraft).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('shows friendly feedback when the account store rejects a duplicate', async () => {
+    mockGetScannerDraft.mockReturnValue(scannedDraft);
+    mockAddAccount.mockRejectedValue(new DuplicateAccountSecretError());
+
+    const { getByText } = await render(<AccountConfirmScreen />);
+
+    await fireEvent.press(getByText('Save Account'));
+
+    expect(
+      await waitFor(() => getByText('This account is already saved.'))
+    ).toBeTruthy();
     expect(mockDeleteScannerDraft).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
   });

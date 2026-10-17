@@ -1,6 +1,8 @@
 import { create, type StoreApi } from 'zustand';
 
 import type { OtpAccount } from '@/features/totp/model/totp-account';
+import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
+import { normalizeAccountSecret } from '@/features/totp/model/account-secret';
 import {
   applyAccountWriteJournal,
   archiveCorruptAccountIndex,
@@ -208,24 +210,66 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           return currentAccounts;
         }
 
+        const secret = normalizeAccountSecret(account.secret);
+
+        if (
+          currentAccounts.some(
+            current => normalizeAccountSecret(current.secret) === secret
+          )
+        ) {
+          throw new DuplicateAccountSecretError();
+        }
+
         const nextSortOrder =
           currentAccounts.length === 0
             ? 0
             : Math.max(...currentAccounts.map(({ sortOrder }) => sortOrder)) +
               1;
 
-        return [...currentAccounts, { ...account, sortOrder: nextSortOrder }];
+        return [
+          ...currentAccounts,
+          { ...account, secret, sortOrder: nextSortOrder }
+        ];
       });
     });
   },
 
   updateAccount: async (id, changes) => {
     await runMutation(async () => {
-      await persistMutation(get, set, currentAccounts =>
-        currentAccounts.map(account =>
-          account.id === id ? { ...account, ...changes, id } : account
-        )
-      );
+      await persistMutation(get, set, currentAccounts => {
+        const target = currentAccounts.find(account => account.id === id);
+
+        if (target == null) {
+          return currentAccounts;
+        }
+
+        const updatedSecret =
+          changes.secret == null
+            ? undefined
+            : normalizeAccountSecret(changes.secret);
+
+        if (
+          updatedSecret != null &&
+          currentAccounts.some(
+            account =>
+              account.id !== id &&
+              normalizeAccountSecret(account.secret) === updatedSecret
+          )
+        ) {
+          throw new DuplicateAccountSecretError();
+        }
+
+        return currentAccounts.map(account =>
+          account.id === id
+            ? {
+                ...account,
+                ...changes,
+                ...(updatedSecret == null ? {} : { secret: updatedSecret }),
+                id
+              }
+            : account
+        );
+      });
     });
   },
 

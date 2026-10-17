@@ -8,6 +8,8 @@ import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createScannedOtpAccount } from '@/features/totp/model/create-account';
+import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
+import { normalizeAccountSecret } from '@/features/totp/model/account-secret';
 import type { TotpDraft } from '@/features/totp/model/parse-otpauth-uri';
 import { canGenerateTotpCode } from '@/features/totp/model/totp-code';
 import { deleteScannerDraft } from '@/features/totp/model/scanner-drafts';
@@ -37,7 +39,12 @@ export function AccountConfirmForm({
   } | null>(null);
 
   const isDuplicate =
-    draft != null && accounts.some(account => account.secret === draft.secret);
+    draft != null &&
+    accounts.some(
+      account =>
+        normalizeAccountSecret(account.secret) ===
+        normalizeAccountSecret(draft.secret)
+    );
   const secretError =
     draft != null &&
     !canGenerateTotpCode({
@@ -82,8 +89,12 @@ export function AccountConfirmForm({
       pendingSave.current = null;
       deleteScannerDraft(draftId);
       onSaved();
-    } catch {
-      setSaveError('Could not save this account. Try again.');
+    } catch (cause) {
+      setSaveError(
+        cause instanceof DuplicateAccountSecretError
+          ? 'This account is already saved.'
+          : 'Could not save this account. Try again.'
+      );
     } finally {
       setIsSaving(false);
     }

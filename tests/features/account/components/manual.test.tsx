@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { router } from 'expo-router';
 
 import type { UseAccountsResult } from '@/features/totp/hooks/use-accounts';
+import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
 import { getDefaultAccountColor } from '@/features/totp/model/account-colors';
 
 const mockAddAccount = jest.fn<UseAccountsResult['addAccount']>();
@@ -145,5 +146,28 @@ describe('ManualAddAccountScreen', () => {
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith('/');
     });
+  });
+
+  it('shows friendly feedback when the account store rejects a duplicate', async () => {
+    mockAddAccount.mockRejectedValue(new DuplicateAccountSecretError());
+
+    const { getByLabelText, getByText } = await render(
+      <ManualAddAccountScreen />
+    );
+
+    await fireEvent.changeText(
+      getByLabelText('Account label'),
+      'user@example.com'
+    );
+    await fireEvent.changeText(
+      getByLabelText('Secret key'),
+      'JBSWY3DPEHPK3PXP'
+    );
+    await fireEvent.press(getByText('Save Account'));
+
+    expect(
+      await waitFor(() => getByText('This account is already saved.'))
+    ).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 });

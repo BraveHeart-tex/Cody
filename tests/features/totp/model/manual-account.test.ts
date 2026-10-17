@@ -14,6 +14,10 @@ describe('manual account validation', () => {
     ).toBe(VALID_SECRET);
   });
 
+  it('normalizes optional Base32 padding', () => {
+    expect(normalizeManualSecret(' my====== ')).toBe('MY');
+  });
+
   it('accepts a valid manual TOTP account', () => {
     const result = validateManualAccount(
       {

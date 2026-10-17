@@ -9,6 +9,7 @@ import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createManualOtpAccount } from '@/features/totp/model/create-account';
+import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
 import {
   validateManualAccount,
   type ManualTotpDigits,
@@ -95,8 +96,12 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       await addAccount(account);
       pendingSave.current = null;
       onSaved();
-    } catch {
-      setSaveError('Could not save this account. Try again.');
+    } catch (cause) {
+      setSaveError(
+        cause instanceof DuplicateAccountSecretError
+          ? 'This account is already saved.'
+          : 'Could not save this account. Try again.'
+      );
     } finally {
       setIsSaving(false);
     }
