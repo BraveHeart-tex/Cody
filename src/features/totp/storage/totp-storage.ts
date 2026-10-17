@@ -33,6 +33,7 @@ export type AccountStorageIssueReason =
   | 'missing-record'
   | 'invalid-record-json'
   | 'invalid-record'
+  | 'invalid-account-id'
   | 'missing-secret'
   | 'read-failed'
   | 'write-recovery-failed';
@@ -294,6 +295,10 @@ export async function deleteAccountData(id: string): Promise<void> {
 export async function getAccountFromStores(
   id: string
 ): Promise<OtpAccount | DamagedAccount> {
+  if (!isSecureStoreAccountId(id)) {
+    return { id, record: null, reason: 'invalid-account-id' };
+  }
+
   const [recordResult, secretResult] = await Promise.allSettled([
     getAccountRecord(id),
     getSecret(id)

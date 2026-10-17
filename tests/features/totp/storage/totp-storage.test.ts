@@ -1,6 +1,7 @@
 /* eslint-disable import/first, @typescript-eslint/no-require-imports */
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getItemAsync } from 'expo-secure-store';
 
 const mockSecureValues = new Map<string, string>();
 
@@ -177,6 +178,34 @@ describe('TOTP storage health', () => {
     await expect(getAccountIndex()).rejects.toBeInstanceOf(
       CorruptAccountIndexError
     );
+  });
+
+  it('keeps invalid account IDs visible without reading their storage keys', async () => {
+    await AsyncStorage.setItem(
+      KEYS.accountIndex,
+      JSON.stringify(['good-id', 'bad/id'])
+    );
+    await AsyncStorage.setItem(
+      KEYS.accountRecord('good-id'),
+      JSON.stringify(baseRecord)
+    );
+    await setSecret('good-id', 'JBSWY3DPEHPK3PXP');
+    jest.clearAllMocks();
+
+    const snapshot = await getAllAccounts();
+
+    expect(snapshot.accountIds).toEqual(['good-id', 'bad/id']);
+    expect(snapshot.accounts).toEqual([
+      { ...baseRecord, secret: 'JBSWY3DPEHPK3PXP' }
+    ]);
+    expect(snapshot.damagedAccounts).toEqual([
+      { id: 'bad/id', record: null, reason: 'invalid-account-id' }
+    ]);
+    expect(AsyncStorage.getItem).not.toHaveBeenCalledWith(
+      KEYS.accountRecord('bad/id')
+    );
+    expect(getItemAsync).toHaveBeenCalledTimes(1);
+    expect(getItemAsync).toHaveBeenCalledWith(KEYS.accountSecret('good-id'));
   });
 
   it('archives raw index data without changing the active index', async () => {
