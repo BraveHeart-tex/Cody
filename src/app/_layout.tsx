@@ -1,4 +1,5 @@
 import { MoveAccountsDoneButton } from '@/features/account/components/move-accounts-done-button';
+import { AppLockGate } from '@/features/app-lock/components/app-lock-gate';
 import { useThemeMode } from '@/features/settings/hooks/use-theme-mode';
 import { useSettingsStore } from '@/features/settings/store/settings-store';
 import '@/global.css';
@@ -63,7 +64,9 @@ export default function RootLayout() {
     }
   }, [isReady]);
 
-  if (!isReady) {
+  // Keep the security boundary mounted while settings retry. Unmounting it on
+  // `loading` would restart its load effect after every failed read.
+  if (!fontsLoaded) {
     return null;
   }
 
@@ -72,31 +75,33 @@ export default function RootLayout() {
       style={{ backgroundColor: theme.colors.background, flex: 1 }}
     >
       <ThemeProvider value={theme}>
-        <Stack screenOptions={screenOptions}>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="add-account/index"
-            options={{ title: 'Add account' }}
-          />
-          <Stack.Screen
-            name="add-account/manual"
-            options={{ title: 'Enter setup key' }}
-          />
-          <Stack.Screen name="scan" options={{ title: 'Scan QR code' }} />
-          <Stack.Screen
-            name="move-accounts"
-            options={{
-              headerRight: MoveAccountsDoneButton,
-              title: 'Move accounts'
-            }}
-          />
-          <Stack.Screen
-            name="account-confirm"
-            options={{ title: 'Review account' }}
-          />
-          <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-        </Stack>
-        <PortalHost />
+        <AppLockGate>
+          <Stack screenOptions={screenOptions}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="add-account/index"
+              options={{ title: 'Add account' }}
+            />
+            <Stack.Screen
+              name="add-account/manual"
+              options={{ title: 'Enter setup key' }}
+            />
+            <Stack.Screen name="scan" options={{ title: 'Scan QR code' }} />
+            <Stack.Screen
+              name="move-accounts"
+              options={{
+                headerRight: MoveAccountsDoneButton,
+                title: 'Move accounts'
+              }}
+            />
+            <Stack.Screen
+              name="account-confirm"
+              options={{ title: 'Review account' }}
+            />
+            <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+          </Stack>
+          <PortalHost />
+        </AppLockGate>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

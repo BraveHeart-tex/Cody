@@ -7,20 +7,22 @@ import {
   it,
   jest
 } from '@jest/globals';
-import { cleanup, fireEvent, render } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render } from '@testing-library/react-native';
 
 import type { AppSettings } from '@/features/settings/model/settings';
-import type { BiometricsSupportStatus } from '@/features/settings/model/biometrics';
 import type { SettingsStoreState } from '@/features/settings/store/settings-store';
 
 let mockSettings: AppSettings;
-const mockSetRequireBiometrics =
-  jest.fn<SettingsStoreState['setRequireBiometrics']>();
+let mockSaveError: Error | null = null;
+const mockChangeProtection =
+  jest.fn<
+    (
+      enabled: boolean
+    ) => Promise<{ success: true } | { success: false; message: string }>
+  >();
 const mockSetLockTimeoutSeconds =
   jest.fn<SettingsStoreState['setLockTimeoutSeconds']>();
 const mockSetThemeMode = jest.fn<SettingsStoreState['setThemeMode']>();
-const mockGetBiometricsSupportStatus =
-  jest.fn<() => Promise<BiometricsSupportStatus>>();
 
 jest.mock('@/components/ui/switch', () => {
   const React = require('react');
@@ -95,6 +97,7 @@ jest.mock('@/components/ui/segmented-control', () => {
           React.createElement(
             Pressable,
             {
+              accessibilityState: { disabled },
               disabled,
               key: option,
               onPress: () => onSelect(option)
@@ -164,29 +167,34 @@ jest.mock('@/features/settings/hooks/use-settings', () => ({
   useSettings: (): Partial<SettingsStoreState> => ({
     error: null,
     isLoading: false,
-    saveError: null,
+    get saveError() {
+      return mockSaveError;
+    },
     setLockTimeoutSeconds: mockSetLockTimeoutSeconds,
-    setRequireBiometrics: mockSetRequireBiometrics,
     setThemeMode: mockSetThemeMode,
     settings: mockSettings
   })
 }));
 
-jest.mock('@/features/settings/model/biometrics', () => ({
-  getBiometricsSupportStatus: () => mockGetBiometricsSupportStatus()
+jest.mock('@/features/app-lock/store/app-lock-store', () => ({
+  useAppLockStore: (
+    selector: (state: {
+      changeProtection: typeof mockChangeProtection;
+    }) => unknown
+  ) => selector({ changeProtection: mockChangeProtection })
 }));
 
 import { SettingsScreen } from '@/features/settings/components/settings-screen';
 
 describe('SettingsScreen', () => {
   beforeEach(() => {
+    mockSaveError = null;
     mockSettings = {
       lockTimeoutSeconds: 60,
       requireBiometrics: false,
       themeMode: 'system'
     };
-    mockGetBiometricsSupportStatus.mockResolvedValue({ isSupported: true });
-    mockSetRequireBiometrics.mockResolvedValue(undefined);
+    mockChangeProtection.mockResolvedValue({ success: true });
     mockSetLockTimeoutSeconds.mockResolvedValue(undefined);
     mockSetThemeMode.mockResolvedValue(undefined);
   });
@@ -196,28 +204,70 @@ describe('SettingsScreen', () => {
     jest.resetAllMocks();
   });
 
-  it('enables biometrics on supported devices', async () => {
+  it('enables protection through the app-lock action', async () => {
     const { getByLabelText } = await render(<SettingsScreen />);
 
     await fireEvent.press(getByLabelText('Require biometrics'));
 
-    expect(mockGetBiometricsSupportStatus).toHaveBeenCalledTimes(1);
-    expect(mockSetRequireBiometrics).toHaveBeenCalledWith(true);
+    expect(mockChangeProtection).toHaveBeenCalledWith(true);
   });
 
-  it('blocks biometrics on unsupported devices', async () => {
-    mockGetBiometricsSupportStatus.mockResolvedValueOnce({
-      isSupported: false,
-      reason: 'no-hardware'
+  it('displays the app-lock failure message without changing protection', async () => {
+    mockChangeProtection.mockResolvedValueOnce({
+      success: false,
+      message: 'Authentication was canceled.'
     });
     const { findByText, getByLabelText } = await render(<SettingsScreen />);
 
     await fireEvent.press(getByLabelText('Require biometrics'));
 
-    expect(mockSetRequireBiometrics).not.toHaveBeenCalled();
+    expect(mockChangeProtection).toHaveBeenCalledWith(true);
+    expect(await findByText('Authentication was canceled.')).toBeTruthy();
+  });
+
+  it('authenticates before disabling protection too', async () => {
+    mockSettings = {
+      lockTimeoutSeconds: 60,
+      requireBiometrics: true,
+      themeMode: 'system'
+    };
+    const { getByLabelText } = await render(<SettingsScreen />);
+
+    await fireEvent.press(getByLabelText('Require biometrics'));
+
+    expect(mockChangeProtection).toHaveBeenCalledWith(false);
+  });
+
+  it('keeps protection and timeout controls disabled while authentication is pending', async () => {
+    mockSettings = {
+      lockTimeoutSeconds: 60,
+      requireBiometrics: true,
+      themeMode: 'system'
+    };
+    let finishChange!: (result: { success: true }) => void;
+
+    mockChangeProtection.mockReturnValueOnce(
+      new Promise(resolve => {
+        finishChange = resolve;
+      })
+    );
+    const { getByLabelText, getByText } = await render(<SettingsScreen />);
+
+    await act(async () => {
+      fireEvent.press(getByLabelText('Require biometrics'));
+      await Promise.resolve();
+    });
+    fireEvent.press(getByLabelText('Require biometrics'));
     expect(
-      await findByText('This device does not support biometric authentication.')
-    ).toBeTruthy();
+      getByLabelText('Require biometrics').props.accessibilityState.disabled
+    ).toBe(true);
+    expect(getByText('5 min').parent?.props.accessibilityState.disabled).toBe(
+      true
+    );
+    expect(mockChangeProtection).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finishChange({ success: true });
+    });
   });
 
   it('hides timeout controls when biometrics are off', async () => {
@@ -242,5 +292,42 @@ describe('SettingsScreen', () => {
 
     expect(mockSetLockTimeoutSeconds).toHaveBeenCalledWith(300);
     expect(mockSetThemeMode).toHaveBeenCalledWith('dark');
+  });
+
+  it('keeps showing storage failures from settings persistence', async () => {
+    mockSaveError = new Error('disk unavailable');
+    const { getByText } = await render(<SettingsScreen />);
+
+    expect(getByText('Settings storage is unavailable.')).toBeTruthy();
+  });
+
+  it('shows storage failure and restores controls when protection persistence rejects', async () => {
+    mockSaveError = null;
+    mockChangeProtection.mockImplementationOnce(async () => {
+      mockSaveError = new Error('disk unavailable');
+
+      throw mockSaveError;
+    });
+    const { getByLabelText, getByText, rerender } = await render(
+      <SettingsScreen />
+    );
+
+    await act(async () => {
+      await fireEvent.press(getByLabelText('Require biometrics'));
+    });
+    expect(mockChangeProtection).toHaveBeenCalledWith(true);
+    await rerender(<SettingsScreen />);
+
+    expect(getByText('Settings storage is unavailable.')).toBeTruthy();
+    expect(
+      getByLabelText('Require biometrics').props.accessibilityState.disabled
+    ).toBe(true);
+    expect(mockChangeProtection).toHaveBeenCalledTimes(1);
+
+    mockSaveError = null;
+    await rerender(<SettingsScreen />);
+    expect(
+      getByLabelText('Require biometrics').props.accessibilityState.disabled
+    ).toBe(false);
   });
 });

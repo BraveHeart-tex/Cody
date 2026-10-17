@@ -14,7 +14,7 @@ import {
 } from '@/features/settings/model/settings';
 
 const LOCK_TIMEOUT_LABELS: Record<LockTimeoutSeconds, string> = {
-  0: 'None',
+  0: 'Immediately',
   60: '1 min',
   300: '5 min',
   900: '15 min'

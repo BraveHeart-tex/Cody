@@ -22,23 +22,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 export function parseAppSettings(value: unknown): AppSettings {
   if (!isRecord(value)) {
-    return DEFAULT_SETTINGS;
+    throw new Error('Stored app settings must be an object.');
+  }
+
+  if (typeof value.requireBiometrics !== 'boolean') {
+    throw new Error(
+      'Stored app settings must include a boolean requireBiometrics flag.'
+    );
   }
 
   const themeMode = isThemeMode(value.themeMode)
     ? value.themeMode
     : DEFAULT_SETTINGS.themeMode;
-  const requireBiometrics =
-    typeof value.requireBiometrics === 'boolean'
-      ? value.requireBiometrics
-      : DEFAULT_SETTINGS.requireBiometrics;
   const lockTimeoutSeconds = isLockTimeoutSeconds(value.lockTimeoutSeconds)
     ? value.lockTimeoutSeconds
     : DEFAULT_SETTINGS.lockTimeoutSeconds;
 
   return {
     lockTimeoutSeconds,
-    requireBiometrics,
+    requireBiometrics: value.requireBiometrics,
     themeMode
   };
 }
@@ -54,5 +56,5 @@ export function isLockTimeoutSeconds(
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value != null;
+  return typeof value === 'object' && value != null && !Array.isArray(value);
 }

@@ -15,11 +15,17 @@ export async function getSettings(): Promise<AppSettings> {
     return DEFAULT_SETTINGS;
   }
 
+  let parsed: unknown;
+
   try {
-    return parseAppSettings(JSON.parse(value));
-  } catch {
-    return DEFAULT_SETTINGS;
+    parsed = JSON.parse(value);
+  } catch (error) {
+    throw new Error('Stored app settings contain invalid JSON.', {
+      cause: error
+    });
   }
+
+  return parseAppSettings(parsed);
 }
 
 export async function setSettings(settings: AppSettings): Promise<void> {

@@ -22,7 +22,7 @@ export function BiometricsSettingsSection({
             Require biometrics
           </Text>
           <Text className="text-muted-foreground text-sm leading-5">
-            Save a preference for biometric app lock.
+            Protect Cody with Face ID, Touch ID, or fingerprint unlock.
           </Text>
         </View>
         <Switch

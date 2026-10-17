@@ -43,10 +43,22 @@ describe('settings storage', () => {
     await expect(getSettings()).resolves.toEqual(settings);
   });
 
-  it('falls back to defaults for invalid JSON', async () => {
+  it('throws an explicit error for invalid JSON', async () => {
     await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, '{');
 
-    await expect(getSettings()).resolves.toEqual(DEFAULT_SETTINGS);
+    await expect(getSettings()).rejects.toThrow(
+      'Stored app settings contain invalid JSON.'
+    );
+  });
+
+  it.each([
+    ['missing security flag', { themeMode: 'dark' }],
+    ['invalid security flag', { requireBiometrics: 'true' }],
+    ['array record', []]
+  ])('rejects %s', async (_label, record) => {
+    await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(record));
+
+    await expect(getSettings()).rejects.toThrow();
   });
 
   it('normalizes invalid persisted fields independently', async () => {

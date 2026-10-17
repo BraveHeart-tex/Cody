@@ -3,17 +3,15 @@ import { ScrollView, View } from 'react-native';
 
 import { StatusMessage } from '@/components/ui/status-message';
 import { Text } from '@/components/ui/text';
+import { useAppLockStore } from '@/features/app-lock/store/app-lock-store';
 import { BiometricsSettingsSection } from '@/features/settings/components/biometrics-settings-section';
 import { LockTimeoutSettingsSection } from '@/features/settings/components/lock-timeout-settings-section';
 import { ThemeSettingsSection } from '@/features/settings/components/theme-settings-section';
 import { useSettings } from '@/features/settings/hooks/use-settings';
-import { getBiometricsSupportStatus } from '@/features/settings/model/biometrics';
-
-const BIOMETRIC_SUPPORT_MESSAGES = {
-  'no-hardware': 'This device does not support biometric authentication.',
-  'not-enrolled':
-    'Set up Face ID, Touch ID, or fingerprint unlock on this device first.'
-} as const;
+import type {
+  LockTimeoutSeconds,
+  ThemeMode
+} from '@/features/settings/model/settings';
 
 export function SettingsScreen() {
   const {
@@ -21,12 +19,12 @@ export function SettingsScreen() {
     isLoading,
     saveError,
     setLockTimeoutSeconds,
-    setRequireBiometrics,
     setThemeMode,
     settings
   } = useSettings();
   const [biometricMessage, setBiometricMessage] = useState<string | null>(null);
-  const [isCheckingBiometrics, setIsCheckingBiometrics] = useState(false);
+  const [isChangingProtection, setIsChangingProtection] = useState(false);
+  const changeProtection = useAppLockStore(state => state.changeProtection);
 
   const storageMessage =
     error != null || saveError != null
@@ -34,50 +32,34 @@ export function SettingsScreen() {
       : null;
   const statusMessage = biometricMessage ?? storageMessage;
   const isBiometricsDisabled =
-    isLoading || isCheckingBiometrics || storageMessage != null;
+    isLoading || isChangingProtection || storageMessage != null;
   const isTimeoutDisabled =
-    isLoading || !settings.requireBiometrics || storageMessage != null;
+    isLoading ||
+    isChangingProtection ||
+    !settings.requireBiometrics ||
+    storageMessage != null;
 
   const handleBiometricsChange = useCallback(
     async (isEnabled: boolean) => {
       setBiometricMessage(null);
-
-      if (!isEnabled) {
-        try {
-          await setRequireBiometrics(false);
-        } catch {
-          // The store records saveError for display.
-        }
-
-        return;
-      }
-
-      setIsCheckingBiometrics(true);
+      setIsChangingProtection(true);
 
       try {
-        const supportStatus = await getBiometricsSupportStatus();
+        const result = await changeProtection(isEnabled);
 
-        if (!supportStatus.isSupported) {
-          setBiometricMessage(BIOMETRIC_SUPPORT_MESSAGES[supportStatus.reason]);
-
-          return;
-        }
-
-        try {
-          await setRequireBiometrics(true);
-        } catch {
-          // The store records saveError for display.
+        if (!result.success) {
+          setBiometricMessage(result.message);
         }
       } catch {
-        setBiometricMessage('Biometric support could not be checked.');
+        // The settings store records persistence errors for display.
       } finally {
-        setIsCheckingBiometrics(false);
+        setIsChangingProtection(false);
       }
     },
-    [setRequireBiometrics]
+    [changeProtection]
   );
   const handleLockTimeoutSelect = useCallback(
-    async (value: typeof settings.lockTimeoutSeconds) => {
+    async (value: LockTimeoutSeconds) => {
       try {
         await setLockTimeoutSeconds(value);
       } catch {
@@ -87,7 +69,7 @@ export function SettingsScreen() {
     [setLockTimeoutSeconds]
   );
   const handleThemeSelect = useCallback(
-    async (value: typeof settings.themeMode) => {
+    async (value: ThemeMode) => {
       try {
         await setThemeMode(value);
       } catch {
