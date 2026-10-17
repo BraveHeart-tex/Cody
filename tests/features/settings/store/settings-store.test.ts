@@ -92,6 +92,114 @@ describe('settings store', () => {
     });
   });
 
+  it('applies the theme before persistence completes', async () => {
+    await useSettingsStore.getState().loadSettings();
+    let finishSave!: () => void;
+
+    mockSetSettings.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finishSave = resolve;
+        })
+    );
+
+    const save = useSettingsStore.getState().setThemeMode('dark');
+
+    expect(useSettingsStore.getState().settings.themeMode).toBe('dark');
+    await Promise.resolve();
+    finishSave();
+    await save;
+  });
+
+  it('coalesces queued selections and persists only the latest theme', async () => {
+    await useSettingsStore.getState().loadSettings();
+    await Promise.all([
+      useSettingsStore.getState().setThemeMode('dark'),
+      useSettingsStore.getState().setThemeMode('light'),
+      useSettingsStore.getState().setThemeMode('system')
+    ]);
+    expect(mockSetSettings).toHaveBeenCalledTimes(1);
+    expect(mockSetSettings).toHaveBeenLastCalledWith(storedSettings);
+    expect(useSettingsStore.getState().settings.themeMode).toBe('system');
+  });
+
+  it('keeps the session theme on save failure and allows retrying it', async () => {
+    await useSettingsStore.getState().loadSettings();
+    const failure = new Error('disk unavailable');
+
+    mockSetSettings.mockRejectedValueOnce(failure);
+    await expect(
+      useSettingsStore.getState().setThemeMode('dark')
+    ).rejects.toThrow(failure);
+    expect(useSettingsStore.getState().settings.themeMode).toBe('dark');
+    expect(useSettingsStore.getState().saveError).toBe(failure);
+
+    await useSettingsStore.getState().setThemeMode('dark');
+    expect(mockSetSettings).toHaveBeenCalledTimes(2);
+    expect(useSettingsStore.getState().saveError).toBeNull();
+  });
+
+  it('does not let an older failed save replace a newer selection', async () => {
+    await useSettingsStore.getState().loadSettings();
+    let failSave!: (cause: Error) => void;
+
+    mockSetSettings.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, reject) => {
+          failSave = reject;
+        })
+    );
+    const first = useSettingsStore.getState().setThemeMode('dark');
+    const rejected = expect(first).rejects.toThrow('disk unavailable');
+
+    await Promise.resolve();
+    const latest = useSettingsStore.getState().setThemeMode('light');
+
+    failSave(new Error('disk unavailable'));
+    await rejected;
+    await latest;
+    expect(useSettingsStore.getState().settings.themeMode).toBe('light');
+    expect(useSettingsStore.getState().saveError).toBeNull();
+    expect(mockSetSettings).toHaveBeenLastCalledWith({
+      ...storedSettings,
+      themeMode: 'light'
+    });
+  });
+
+  it('preserves a theme selected during a biometric settings write', async () => {
+    await useSettingsStore.getState().loadSettings();
+    let finishSave!: () => void;
+
+    mockSetSettings.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finishSave = resolve;
+        })
+    );
+    const biometricSave = useSettingsStore
+      .getState()
+      .setRequireBiometrics(true);
+
+    await Promise.resolve();
+    await Promise.resolve();
+    const themeSave = useSettingsStore.getState().setThemeMode('dark');
+
+    finishSave();
+    await biometricSave;
+    expect(useSettingsStore.getState().settings.themeMode).toBe('dark');
+    await themeSave;
+    expect(mockSetSettings).toHaveBeenLastCalledWith({
+      ...storedSettings,
+      requireBiometrics: true,
+      themeMode: 'dark'
+    });
+  });
+
+  it('does not save an unchanged theme', async () => {
+    await useSettingsStore.getState().setThemeMode('system');
+    expect(mockSetSettings).not.toHaveBeenCalled();
+  });
+
   it('ignores invalid theme values', async () => {
     await useSettingsStore
       .getState()

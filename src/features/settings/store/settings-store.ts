@@ -37,6 +37,7 @@ const initialState = {
 
 let loadPromise: Promise<void> | null = null;
 let mutationQueue = Promise.resolve();
+let themeRevision = 0;
 
 type SettingsStoreSet = StoreApi<SettingsStoreState>['setState'];
 
@@ -110,16 +111,54 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
       return;
     }
 
-    await updateSettings(get, set, current => ({
-      ...current,
-      themeMode: value
-    }));
+    if (get().loadStatus !== 'loaded') {
+      await get().loadSettings();
+    }
+
+    if (get().settings.themeMode === value && get().saveError == null) {
+      return;
+    }
+
+    const revision = ++themeRevision;
+
+    // Apply immediately. Persistence must never replay an older selection.
+    set({
+      saveError: null,
+      settings: { ...get().settings, themeMode: value }
+    });
+
+    const queuedMutation = mutationQueue.then(async () => {
+      if (revision !== themeRevision) {
+        return;
+      }
+
+      try {
+        await setSettings(get().settings);
+
+        if (revision === themeRevision && get().saveError != null) {
+          set({ saveError: null });
+        }
+      } catch (cause) {
+        const mutationError = toError(cause);
+
+        if (revision === themeRevision) {
+          // Keep the session theme; expose that it could not be saved.
+          set({ saveError: mutationError });
+        }
+
+        throw mutationError;
+      }
+    });
+
+    mutationQueue = queuedMutation.catch(() => undefined);
+    await queuedMutation;
   }
 }));
 
 export function resetSettingsStoreForTest(): void {
   loadPromise = null;
   mutationQueue = Promise.resolve();
+  themeRevision = 0;
   useSettingsStore.setState(initialState);
 }
 
@@ -137,7 +176,8 @@ async function updateSettings(
       await setSettings(nextSettings);
       set({
         saveError: null,
-        settings: nextSettings
+        // A theme selection may have arrived while this write was in flight.
+        settings: { ...nextSettings, themeMode: get().settings.themeMode }
       });
     } catch (cause) {
       const mutationError = toError(cause);

@@ -1,17 +1,20 @@
 import { useLayoutEffect } from 'react';
 import { Appearance } from 'react-native';
 
-import { useSettings } from '@/features/settings/hooks/use-settings';
+import { useSettingsStore } from '@/features/settings/store/settings-store';
 
-export function useThemeMode() {
-  const { settings } = useSettings();
-  const { themeMode } = settings;
+export function useThemeMode(enabled = true) {
+  const themeMode = useSettingsStore(state => state.settings.themeMode);
 
   useLayoutEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     Appearance.setColorScheme(
       themeMode === 'system' ? 'unspecified' : themeMode
     );
-  }, [themeMode]);
+  }, [enabled, themeMode]);
 
   return themeMode;
 }

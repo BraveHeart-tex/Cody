@@ -7,22 +7,23 @@ import type { ThemeMode } from '@/features/settings/model/settings';
 
 let mockThemeMode: ThemeMode = 'system';
 
-jest.mock('@/features/settings/hooks/use-settings', () => ({
-  useSettings: () => ({
-    settings: {
-      lockTimeoutSeconds: 60,
-      requireBiometrics: false,
-      themeMode: mockThemeMode
-    }
-  })
+jest.mock('@/features/settings/store/settings-store', () => ({
+  useSettingsStore: (
+    selector: (state: { settings: { themeMode: ThemeMode } }) => unknown
+  ) =>
+    selector({
+      settings: {
+        themeMode: mockThemeMode
+      }
+    })
 }));
 
 import { useThemeMode } from '@/features/settings/hooks/use-theme-mode';
 
 const mockSetColorScheme = jest.spyOn(Appearance, 'setColorScheme');
 
-function ThemeModeProbe() {
-  useThemeMode();
+function ThemeModeProbe({ enabled = true }: { enabled?: boolean }) {
+  useThemeMode(enabled);
 
   return null;
 }
@@ -38,6 +39,24 @@ describe('useThemeMode', () => {
     await render(<ThemeModeProbe />);
 
     expect(mockSetColorScheme).toHaveBeenCalledWith('unspecified');
+  });
+
+  it('waits until ready and does not reapply on unrelated renders', async () => {
+    const view = await render(<ThemeModeProbe enabled={false} />);
+
+    expect(mockSetColorScheme).not.toHaveBeenCalled();
+
+    await view.rerender(<ThemeModeProbe />);
+    await view.rerender(<ThemeModeProbe />);
+    expect(mockSetColorScheme).toHaveBeenCalledTimes(1);
+
+    mockThemeMode = 'dark';
+    await view.rerender(<ThemeModeProbe />);
+    expect(mockSetColorScheme).toHaveBeenLastCalledWith('dark');
+
+    mockThemeMode = 'system';
+    await view.rerender(<ThemeModeProbe />);
+    expect(mockSetColorScheme).toHaveBeenLastCalledWith('unspecified');
   });
 
   it('applies explicit theme overrides', async () => {
