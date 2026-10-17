@@ -10,7 +10,10 @@ import {
 
 import type { UpdateAccountInput } from '@/features/totp/hooks/use-accounts';
 import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
+import type {
+  OtpAccount,
+  StoredOtpAccount
+} from '@/features/totp/model/totp-account';
 
 jest.mock('@/features/totp/storage/totp-storage', () => ({
   CorruptAccountIndexError: class CorruptAccountIndexError extends Error {
@@ -31,6 +34,7 @@ jest.mock('@/features/totp/storage/totp-storage', () => ({
   getAccountWriteJournal: jest.fn(),
   getAccountFromStores: jest.fn(),
   getAllAccounts: jest.fn(),
+  getSecret: jest.fn(),
   getStagedAccountSecret: jest.fn(),
   recoverAccountWriteJournal: jest.fn(),
   saveAccountWriteJournal: jest.fn(),
@@ -51,6 +55,7 @@ import {
   getAccountFromStores,
   getAccountWriteJournal,
   getAllAccounts,
+  getSecret,
   getStagedAccountSecret,
   recoverAccountWriteJournal,
   saveAccountWriteJournal,
@@ -70,6 +75,7 @@ const mockDeleteAccountData = jest.mocked(deleteAccountData);
 const mockArchiveCorruptAccountIndex = jest.mocked(archiveCorruptAccountIndex);
 const mockGetAccountFromStores = jest.mocked(getAccountFromStores);
 const mockGetAllAccounts = jest.mocked(getAllAccounts);
+const mockGetSecret = jest.mocked(getSecret);
 const mockSetAccountIndex = jest.mocked(setAccountIndex);
 const mockSetAccountRecord = jest.mocked(setAccountRecord);
 const mockSetSecret = jest.mocked(setSecret);
@@ -115,6 +121,7 @@ describe('accounts store', () => {
     mockGetAllAccounts.mockResolvedValue(createSnapshot([]));
     mockRecoverAccountWriteJournal.mockResolvedValue(undefined);
     mockGetAccountWriteJournal.mockResolvedValue(null);
+    mockGetSecret.mockResolvedValue(null);
     mockSaveAccountWriteJournal.mockResolvedValue(undefined);
     mockApplyAccountWriteJournal.mockImplementation(async journal => {
       if (journal.kind === 'remove') {
@@ -133,7 +140,10 @@ describe('accounts store', () => {
         }
       }
 
-      await mockSetAccountIndex(journal.accountIds);
+      if (journal.writeAccountIndex !== false) {
+        await mockSetAccountIndex(journal.accountIds);
+      }
+
       await mockClearAccountWriteJournal();
     });
     mockClearAccountWriteJournal.mockImplementation(async () => {
@@ -175,6 +185,38 @@ describe('accounts store', () => {
       isLoading: false,
       loadStatus: 'loaded'
     });
+  });
+
+  it('loads an account secret only when requested', async () => {
+    const { secret: _secret, ...metadata } = account;
+
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([metadata]));
+    mockGetSecret.mockResolvedValueOnce(account.secret);
+
+    await useAccountsStore.getState().loadAccounts();
+
+    expect(useAccountsStore.getState().accounts).toEqual([metadata]);
+    expect(mockGetSecret).not.toHaveBeenCalled();
+
+    await useAccountsStore.getState().loadAccountSecret(account.id);
+
+    expect(mockGetSecret).toHaveBeenCalledWith(account.id);
+    expect(useAccountsStore.getState().accounts).toEqual([account]);
+  });
+
+  it('marks a missing deferred secret as a damaged account', async () => {
+    const { secret: _secret, ...metadata } = account;
+
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([metadata]));
+    mockGetSecret.mockResolvedValueOnce(null);
+
+    await useAccountsStore.getState().loadAccounts();
+    await useAccountsStore.getState().loadAccountSecret(account.id);
+
+    expect(useAccountsStore.getState().accounts).toEqual([]);
+    expect(useAccountsStore.getState().damagedAccounts).toEqual([
+      { id: account.id, record: metadata, reason: 'missing-secret' }
+    ]);
   });
 
   it('sets error state after a failed load and allows a later retry', async () => {
@@ -411,6 +453,95 @@ describe('accounts store', () => {
     expect(mockSetAccountRecord).not.toHaveBeenCalled();
   });
 
+  it('checks unloaded account secrets before accepting an add', async () => {
+    const { secret: _secret, ...metadata } = account;
+    const duplicate = createAccount({
+      id: 'duplicate-id',
+      issuer: 'Different issuer',
+      label: 'different@example.com',
+      secret: account.secret,
+      sortOrder: 0
+    });
+
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([metadata]));
+    mockGetSecret.mockResolvedValueOnce(account.secret);
+
+    await useAccountsStore.getState().loadAccounts();
+    await expect(
+      useAccountsStore.getState().addAccount(duplicate)
+    ).rejects.toBeInstanceOf(DuplicateAccountSecretError);
+
+    expect(mockGetSecret).toHaveBeenCalledWith(account.id);
+    expect(mockSaveAccountWriteJournal).not.toHaveBeenCalled();
+  });
+
+  it('keeps deferred secret damage visible when a duplicate add is rejected', async () => {
+    const { secret: _secret, ...metadata } = account;
+    const duplicate = createAccount({
+      id: 'duplicate-id',
+      issuer: 'Different issuer',
+      label: 'different@example.com',
+      secret: secondAccount.secret,
+      sortOrder: 0
+    });
+
+    mockGetAllAccounts.mockResolvedValueOnce(
+      createSnapshot([metadata, secondAccount])
+    );
+    mockGetSecret.mockResolvedValueOnce(null);
+
+    await useAccountsStore.getState().loadAccounts();
+    await expect(
+      useAccountsStore.getState().addAccount(duplicate)
+    ).rejects.toBeInstanceOf(DuplicateAccountSecretError);
+
+    expect(useAccountsStore.getState().damagedAccounts).toContainEqual({
+      id: account.id,
+      record: metadata,
+      reason: 'missing-secret'
+    });
+  });
+
+  it('skips unchanged index and secret writes for metadata updates', async () => {
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([account]));
+
+    await useAccountsStore.getState().loadAccounts();
+    mockSetAccountRecord.mockClear();
+    mockSetAccountIndex.mockClear();
+    mockSetSecret.mockClear();
+
+    await useAccountsStore.getState().updateAccount(account.id, {
+      label: 'renamed@example.com'
+    });
+
+    expect(mockSetAccountRecord).toHaveBeenCalledTimes(1);
+    expect(mockSetAccountIndex).not.toHaveBeenCalled();
+    expect(mockSetSecret).not.toHaveBeenCalled();
+    expect(mockApplyAccountWriteJournal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        writeAccountIndex: false,
+        records: [expect.objectContaining({ label: 'renamed@example.com' })]
+      })
+    );
+  });
+
+  it('does not rewrite an unchanged record or index when a secret changes', async () => {
+    mockGetAllAccounts.mockResolvedValueOnce(createSnapshot([account]));
+
+    await useAccountsStore.getState().loadAccounts();
+    mockSetAccountRecord.mockClear();
+    mockSetAccountIndex.mockClear();
+    mockSetSecret.mockClear();
+
+    await useAccountsStore.getState().updateAccount(account.id, {
+      secret: 'MFRGGZDFMZTWQ2LK'
+    });
+
+    expect(mockSetAccountRecord).not.toHaveBeenCalled();
+    expect(mockSetAccountIndex).not.toHaveBeenCalled();
+    expect(mockSetSecret).toHaveBeenCalledWith(account.id, 'MFRGGZDFMZTWQ2LK');
+  });
+
   it('rejects the later of two concurrent adds with the same secret', async () => {
     const first = createAccount({
       id: 'first-duplicate-id',
@@ -634,7 +765,7 @@ function createAccount({
 }
 
 function createSnapshot(
-  accounts: OtpAccount[],
+  accounts: StoredOtpAccount[],
   damagedAccounts: (typeof damagedAccount)[] = [],
   accountIds = [
     ...accounts.map(account => account.id),

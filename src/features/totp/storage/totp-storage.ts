@@ -5,6 +5,7 @@ import type {
   Algorithm,
   OtpAccount,
   OtpAccountRecord,
+  StoredOtpAccount,
   OtpType
 } from '@/features/totp/model/totp-account';
 
@@ -46,7 +47,7 @@ export interface DamagedAccount {
 
 export interface AccountsStorageSnapshot {
   accountIds: string[];
-  accounts: OtpAccount[];
+  accounts: StoredOtpAccount[];
   damagedAccounts: DamagedAccount[];
 }
 
@@ -57,6 +58,7 @@ export interface AccountWriteJournal {
   records: OtpAccountRecord[];
   secretAccountId: string | null;
   removeAccountId: string | null;
+  writeAccountIndex?: boolean;
 }
 
 export class CorruptAccountIndexError extends Error {
@@ -151,7 +153,9 @@ export async function applyAccountWriteJournal(
     await setSecret(journal.secretAccountId, stagedSecret);
   }
 
-  await setAccountIndex(journal.accountIds);
+  if (journal.writeAccountIndex !== false) {
+    await setAccountIndex(journal.accountIds);
+  }
 
   if (journal.secretAccountId != null) {
     await deleteStagedAccountSecret();
@@ -339,14 +343,88 @@ export async function getAccountFromStores(
 
 export async function getAllAccounts(): Promise<AccountsStorageSnapshot> {
   const accountIds = await getAccountIndex();
-  const entries = await Promise.all(accountIds.map(getAccountFromStores));
+  const entries = await getAccountRecords(accountIds);
 
   return {
     accountIds,
-    accounts: entries.filter(isOtpAccount),
-    damagedAccounts: entries.filter(isDamagedAccount)
+    accounts: entries.flatMap(entry => ('reason' in entry ? [] : [entry])),
+    damagedAccounts: entries.flatMap(entry =>
+      'reason' in entry ? [entry] : []
+    )
   };
 }
+
+async function getAccountRecords(
+  accountIds: string[]
+): Promise<(StoredOtpAccount | DamagedAccount)[]> {
+  const readableIds = accountIds.filter(isSecureStoreAccountId);
+  let recordsById: Map<string, string | null | typeof RECORD_READ_FAILED>;
+
+  if (readableIds.length === 0) {
+    recordsById = new Map();
+  } else if (typeof AsyncStorage.multiGet === 'function') {
+    try {
+      const values = await AsyncStorage.multiGet(
+        readableIds.map(id => KEYS.accountRecord(id))
+      );
+
+      recordsById = new Map(values);
+    } catch {
+      recordsById = await getRecordsIndividually(readableIds);
+    }
+  } else {
+    recordsById = await getRecordsIndividually(readableIds);
+  }
+
+  return accountIds.map(id => {
+    if (!isSecureStoreAccountId(id)) {
+      return { id, record: null, reason: 'invalid-account-id' };
+    }
+
+    const rawValue = recordsById.get(KEYS.accountRecord(id)) ?? null;
+
+    if (rawValue === RECORD_READ_FAILED) {
+      return { id, record: null, reason: 'read-failed' };
+    }
+
+    if (rawValue == null) {
+      return { id, record: null, reason: 'missing-record' };
+    }
+
+    try {
+      const record: unknown = JSON.parse(rawValue);
+
+      if (!isOtpAccountRecord(record) || record.id !== id) {
+        return { id, record: null, reason: 'invalid-record' };
+      }
+
+      return record;
+    } catch {
+      return { id, record: null, reason: 'invalid-record-json' };
+    }
+  });
+}
+
+async function getRecordsIndividually(
+  ids: string[]
+): Promise<Map<string, string | null | typeof RECORD_READ_FAILED>> {
+  const values = await Promise.all(
+    ids.map(async id => {
+      try {
+        return [
+          KEYS.accountRecord(id),
+          await AsyncStorage.getItem(KEYS.accountRecord(id))
+        ] as const;
+      } catch {
+        return [KEYS.accountRecord(id), RECORD_READ_FAILED] as const;
+      }
+    })
+  );
+
+  return new Map<string, string | null | typeof RECORD_READ_FAILED>(values);
+}
+
+const RECORD_READ_FAILED = Symbol('record-read-failed');
 
 class InvalidAccountRecordError extends Error {
   constructor(readonly reason: 'invalid-record-json' | 'invalid-record') {
@@ -374,6 +452,8 @@ function isAccountWriteJournal(value: unknown): value is AccountWriteJournal {
     value.records.every(isOtpAccountRecord) &&
     (value.secretAccountId == null ||
       isSecureStoreAccountId(value.secretAccountId)) &&
+    (value.writeAccountIndex == null ||
+      typeof value.writeAccountIndex === 'boolean') &&
     (value.kind === 'remove'
       ? typeof value.removeAccountId === 'string'
       : value.removeAccountId == null)
@@ -382,16 +462,6 @@ function isAccountWriteJournal(value: unknown): value is AccountWriteJournal {
 
 function isSecureStoreAccountId(value: unknown): value is string {
   return typeof value === 'string' && SECURE_STORE_KEY_ID.test(value);
-}
-
-function isOtpAccount(value: OtpAccount | DamagedAccount): value is OtpAccount {
-  return 'secret' in value;
-}
-
-function isDamagedAccount(
-  value: OtpAccount | DamagedAccount
-): value is DamagedAccount {
-  return !isOtpAccount(value);
 }
 
 function isOtpAccountRecord(value: unknown): value is OtpAccountRecord {

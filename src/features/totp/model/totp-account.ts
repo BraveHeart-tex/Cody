@@ -27,3 +27,7 @@ export interface OtpAccountRecord {
 export interface OtpAccount extends OtpAccountRecord {
   secret: string;
 }
+
+export interface StoredOtpAccount extends OtpAccountRecord {
+  secret?: string;
+}

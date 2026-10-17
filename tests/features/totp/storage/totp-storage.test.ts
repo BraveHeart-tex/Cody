@@ -22,6 +22,7 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 import {
+  applyAccountWriteJournal,
   archiveCorruptAccountIndex,
   CorruptAccountIndexError,
   getAllAccounts,
@@ -65,7 +66,7 @@ describe('TOTP storage health', () => {
     });
   });
 
-  it('surfaces malformed record JSON and missing record-secret pairs', async () => {
+  it('batches metadata reads and defers missing-secret detection', async () => {
     await AsyncStorage.setItem(
       KEYS.accountIndex,
       JSON.stringify([
@@ -95,17 +96,20 @@ describe('TOTP storage health', () => {
       'missing-record-id'
     ]);
     expect(snapshot.accounts).toEqual([
-      { ...baseRecord, secret: 'JBSWY3DPEHPK3PXP' }
+      baseRecord,
+      { ...baseRecord, id: 'missing-secret-id' }
     ]);
     expect(snapshot.damagedAccounts).toEqual([
       { id: 'bad-json-id', record: null, reason: 'invalid-record-json' },
-      {
-        id: 'missing-secret-id',
-        record: { ...baseRecord, id: 'missing-secret-id' },
-        reason: 'missing-secret'
-      },
       { id: 'missing-record-id', record: null, reason: 'missing-record' }
     ]);
+    expect(AsyncStorage.multiGet).toHaveBeenCalledWith([
+      KEYS.accountRecord('good-id'),
+      KEYS.accountRecord('bad-json-id'),
+      KEYS.accountRecord('missing-secret-id'),
+      KEYS.accountRecord('missing-record-id')
+    ]);
+    expect(getItemAsync).not.toHaveBeenCalled();
   });
 
   it('keeps unsupported account types out of usable accounts', async () => {
@@ -169,6 +173,27 @@ describe('TOTP storage health', () => {
     ).resolves.toBeNull();
   });
 
+  it('replays a metadata journal without rewriting an unchanged index', async () => {
+    await AsyncStorage.setItem(KEYS.accountIndex, JSON.stringify(['good-id']));
+    jest.clearAllMocks();
+
+    await applyAccountWriteJournal({
+      kind: 'write',
+      accountIds: ['good-id'],
+      affectedIds: ['good-id'],
+      records: [{ ...baseRecord, label: 'renamed@example.com' }],
+      secretAccountId: null,
+      removeAccountId: null,
+      writeAccountIndex: false
+    });
+
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+      KEYS.accountIndex,
+      expect.any(String)
+    );
+    expect(await getAccountIndex()).toEqual(['good-id']);
+  });
+
   it('rejects a parsed index with a non-string account id', async () => {
     await AsyncStorage.setItem(
       KEYS.accountIndex,
@@ -195,17 +220,14 @@ describe('TOTP storage health', () => {
     const snapshot = await getAllAccounts();
 
     expect(snapshot.accountIds).toEqual(['good-id', 'bad/id']);
-    expect(snapshot.accounts).toEqual([
-      { ...baseRecord, secret: 'JBSWY3DPEHPK3PXP' }
-    ]);
+    expect(snapshot.accounts).toEqual([baseRecord]);
     expect(snapshot.damagedAccounts).toEqual([
       { id: 'bad/id', record: null, reason: 'invalid-account-id' }
     ]);
     expect(AsyncStorage.getItem).not.toHaveBeenCalledWith(
       KEYS.accountRecord('bad/id')
     );
-    expect(getItemAsync).toHaveBeenCalledTimes(1);
-    expect(getItemAsync).toHaveBeenCalledWith(KEYS.accountSecret('good-id'));
+    expect(getItemAsync).not.toHaveBeenCalled();
   });
 
   it('archives raw index data without changing the active index', async () => {

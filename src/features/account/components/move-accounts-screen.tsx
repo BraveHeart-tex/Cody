@@ -8,7 +8,7 @@ import {
   scheduleAfterRender
 } from '@/features/account/model/move-accounts';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
+import type { StoredOtpAccount } from '@/features/totp/model/totp-account';
 import { useCallback, useMemo, useState } from 'react';
 import type { ScrollView } from 'react-native';
 import { View } from 'react-native';
@@ -56,7 +56,7 @@ export function MoveAccountsScreen() {
   }, []);
 
   const handleDragEnd = useCallback(
-    ({ data }: SortableGridDragEndParams<OtpAccount>) => {
+    ({ data }: SortableGridDragEndParams<StoredOtpAccount>) => {
       const accountIds = data.map(account => account.id);
 
       setOrderedAccountIds(accountIds);
@@ -73,7 +73,7 @@ export function MoveAccountsScreen() {
     [reorderAccounts]
   );
 
-  const renderItem = useCallback<SortableGridRenderItem<OtpAccount>>(
+  const renderItem = useCallback<SortableGridRenderItem<StoredOtpAccount>>(
     ({ item }) => <MoveAccountCard account={item} />,
     []
   );
@@ -187,6 +187,6 @@ export function MoveAccountsScreen() {
   );
 }
 
-function keyExtractor(account: OtpAccount): string {
+function keyExtractor(account: StoredOtpAccount): string {
   return account.id;
 }

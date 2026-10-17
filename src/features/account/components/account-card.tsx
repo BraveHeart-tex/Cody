@@ -10,8 +10,8 @@ import { AccountInitial } from '@/features/account/components/account-initial';
 import { getAccountInitial } from '@/features/account/model/account-display';
 import type { TotpPeriod } from '@/features/totp/hooks/use-totp-countdown';
 import { getAccountColor } from '@/features/totp/model/account-colors';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
-import { memo, useCallback, useMemo } from 'react';
+import type { StoredOtpAccount } from '@/features/totp/model/totp-account';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 import { Pressable, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
@@ -21,8 +21,10 @@ import Animated, {
 } from 'react-native-reanimated';
 
 interface AccountCardProps {
-  account: OtpAccount;
+  account: StoredOtpAccount;
   isActive: boolean;
+  isSecretLoading?: boolean;
+  onLoadSecret?: (accountId: string) => Promise<void>;
   onDelete: (accountId: string) => void;
   onMove?: () => void;
   onPress: (accountId: string) => void;
@@ -43,6 +45,8 @@ const DETAILS_EXITING = FadeOutUp.duration(140).easing(Easing.in(Easing.cubic));
 export const AccountCard = memo(function AccountCard({
   account,
   isActive,
+  isSecretLoading = false,
+  onLoadSecret,
   onDelete,
   onMove,
   onPress
@@ -51,6 +55,12 @@ export const AccountCard = memo(function AccountCard({
   const color = getAccountColor(account);
   const issuer = account.issuer || 'Unknown issuer';
   const initial = getAccountInitial(account);
+
+  useEffect(() => {
+    if (isActive && account.secret == null) {
+      void onLoadSecret?.(account.id);
+    }
+  }, [account.id, account.secret, isActive, onLoadSecret]);
 
   const iconStyle = useMemo<ViewStyle>(
     () => ({
@@ -107,6 +117,7 @@ export const AccountCard = memo(function AccountCard({
                 account={account}
                 color={color}
                 issuer={issuer}
+                isSecretLoading={isSecretLoading}
                 period={period}
               />
             </Animated.View>
@@ -137,6 +148,13 @@ function areAccountCardPropsEqual(
   }
 
   if (previous.onMove !== next.onMove) {
+    return false;
+  }
+
+  if (
+    previous.isSecretLoading !== next.isSecretLoading ||
+    previous.onLoadSecret !== next.onLoadSecret
+  ) {
     return false;
   }
 

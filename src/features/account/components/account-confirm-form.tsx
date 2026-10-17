@@ -60,8 +60,9 @@ export function AccountConfirmForm({
     draft != null &&
     accounts.some(
       account =>
+        account.secret != null &&
         normalizeAccountSecret(account.secret) ===
-        normalizeAccountSecret(draft.secret)
+          normalizeAccountSecret(draft.secret)
     );
   const secretError =
     draft != null &&

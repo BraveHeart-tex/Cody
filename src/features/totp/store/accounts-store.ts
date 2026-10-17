@@ -1,6 +1,9 @@
 import { create, type StoreApi } from 'zustand';
 
-import type { OtpAccount } from '@/features/totp/model/totp-account';
+import type {
+  OtpAccount,
+  StoredOtpAccount
+} from '@/features/totp/model/totp-account';
 import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
 import { normalizeAccountSecret } from '@/features/totp/model/account-secret';
 import {
@@ -12,6 +15,7 @@ import {
   getAccountWriteJournal,
   getAccountFromStores,
   getAllAccounts,
+  getSecret,
   getStagedAccountSecret,
   recoverAccountWriteJournal,
   saveAccountWriteJournal,
@@ -29,15 +33,17 @@ export type AddAccountInput = OtpAccount;
 export type UpdateAccountInput = Partial<Omit<OtpAccount, 'id'>>;
 
 export interface AccountsStoreState {
-  accounts: OtpAccount[];
+  accounts: StoredOtpAccount[];
   accountIds: string[];
   damagedAccounts: DamagedAccount[];
+  accountSecretLoading: Record<string, boolean>;
   isLoading: boolean;
   error: Error | null;
   loadStatus: AccountsLoadStatus;
   loadAccounts: () => Promise<void>;
   retryLoad: () => Promise<void>;
   retryAccount: (id: string) => Promise<void>;
+  loadAccountSecret: (id: string) => Promise<void>;
   removeDamagedAccount: (id: string) => Promise<void>;
   startReaddingAccounts: () => Promise<void>;
   addAccount: (account: AddAccountInput) => Promise<void>;
@@ -47,9 +53,10 @@ export interface AccountsStoreState {
 }
 
 const initialState = {
-  accounts: [] as OtpAccount[],
+  accounts: [] as StoredOtpAccount[],
   accountIds: [] as string[],
   damagedAccounts: [] as DamagedAccount[],
+  accountSecretLoading: {} as Record<string, boolean>,
   isLoading: true,
   error: null as Error | null,
   loadStatus: 'idle' as AccountsLoadStatus
@@ -57,6 +64,7 @@ const initialState = {
 
 let loadPromise: Promise<void> | null = null;
 let mutationQueue = Promise.resolve();
+const accountSecretPromises = new Map<string, Promise<void>>();
 
 type AccountsStoreSet = StoreApi<AccountsStoreState>['setState'];
 
@@ -139,9 +147,63 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
 
       set({
         accounts: sortAccounts(nextAccounts),
-        damagedAccounts: orderDamagedAccounts(current.accountIds, nextDamaged)
+        damagedAccounts: orderDamagedAccounts(current.accountIds, nextDamaged),
+        accountSecretLoading: omitKey(current.accountSecretLoading, id)
       });
     });
+  },
+
+  loadAccountSecret: async id => {
+    const existing = get().accounts.find(account => account.id === id);
+
+    if (existing == null || existing.secret != null) {
+      return;
+    }
+
+    const existingPromise = accountSecretPromises.get(id);
+
+    if (existingPromise != null) {
+      return existingPromise;
+    }
+
+    set({
+      accountSecretLoading: { ...get().accountSecretLoading, [id]: true }
+    });
+
+    const promise = (async () => {
+      try {
+        const secret = await getSecret(id);
+        const current = get();
+        const account = current.accounts.find(value => value.id === id);
+
+        if (account == null) {
+          return;
+        }
+
+        if (secret == null) {
+          moveAccountToDamaged(set, get, id, 'missing-secret');
+
+          return;
+        }
+
+        set({
+          accounts: sortAccounts(
+            current.accounts.map(value =>
+              value.id === id ? { ...value, secret } : value
+            )
+          ),
+          accountSecretLoading: omitKey(current.accountSecretLoading, id)
+        });
+      } catch {
+        moveAccountToDamaged(set, get, id, 'read-failed');
+      } finally {
+        accountSecretPromises.delete(id);
+      }
+    })();
+
+    accountSecretPromises.set(id, promise);
+
+    return promise;
   },
 
   removeDamagedAccount: async id => {
@@ -169,6 +231,7 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           accountIds: nextIds,
           accounts: accounts.filter(account => account.id !== id),
           damagedAccounts: damagedAccounts.filter(account => account.id !== id),
+          accountSecretLoading: omitKey(get().accountSecretLoading, id),
           error: null,
           loadStatus: 'loaded'
         });
@@ -196,6 +259,7 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
         accountIds: [],
         accounts: [],
         damagedAccounts: [],
+        accountSecretLoading: {},
         error: null,
         isLoading: false,
         loadStatus: 'loaded'
@@ -205,16 +269,21 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
 
   addAccount: async account => {
     await runMutation(async () => {
-      await persistMutation(get, set, currentAccounts => {
+      await persistMutation(get, set, async currentAccounts => {
         if (currentAccounts.some(({ id }) => id === account.id)) {
           return currentAccounts;
         }
+
+        await loadSecretsForDuplicateCheck(get);
+        currentAccounts = get().accounts;
 
         const secret = normalizeAccountSecret(account.secret);
 
         if (
           currentAccounts.some(
-            current => normalizeAccountSecret(current.secret) === secret
+            current =>
+              current.secret != null &&
+              normalizeAccountSecret(current.secret) === secret
           )
         ) {
           throw new DuplicateAccountSecretError();
@@ -236,10 +305,12 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
 
   updateAccount: async (id, changes) => {
     await runMutation(async () => {
-      await persistMutation(get, set, currentAccounts => {
-        const target = currentAccounts.find(account => account.id === id);
+      await persistMutation(get, set, async currentAccounts => {
+        const initialTarget = currentAccounts.find(
+          account => account.id === id
+        );
 
-        if (target == null) {
+        if (initialTarget == null) {
           return currentAccounts;
         }
 
@@ -248,11 +319,23 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
             ? undefined
             : normalizeAccountSecret(changes.secret);
 
+        if (updatedSecret != null && updatedSecret !== initialTarget.secret) {
+          await loadSecretsForDuplicateCheck(get, id);
+          currentAccounts = get().accounts;
+        }
+
+        const target = currentAccounts.find(account => account.id === id);
+
+        if (target == null) {
+          return currentAccounts;
+        }
+
         if (
           updatedSecret != null &&
           currentAccounts.some(
             account =>
               account.id !== id &&
+              account.secret != null &&
               normalizeAccountSecret(account.secret) === updatedSecret
           )
         ) {
@@ -308,7 +391,7 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
         );
         const reorderedAccounts = ids
           .map(id => accountById.get(id))
-          .filter((account): account is OtpAccount => account != null);
+          .filter((account): account is StoredOtpAccount => account != null);
         const reorderedIds = new Set(reorderedAccounts.map(({ id }) => id));
         const remainingAccounts = accounts.filter(
           ({ id }) => !reorderedIds.has(id)
@@ -342,7 +425,8 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
           changedRecords.length > 0
             ? changedRecords.map(({ id }) => id)
             : nextIds,
-          null
+          null,
+          !arraysEqual(nextIds, accountIds)
         );
 
         await saveAccountWriteJournal(journal);
@@ -360,6 +444,7 @@ export const useAccountsStore = create<AccountsStoreState>((set, get) => ({
 export function resetAccountsStoreForTest(): void {
   loadPromise = null;
   mutationQueue = Promise.resolve();
+  accountSecretPromises.clear();
   useAccountsStore.setState(initialState);
 }
 
@@ -374,14 +459,17 @@ async function runMutation(mutation: () => Promise<void>): Promise<void> {
 async function persistMutation(
   get: () => AccountsStoreState,
   set: AccountsStoreSet,
-  getNextAccounts: (accounts: OtpAccount[]) => OtpAccount[]
+  getNextAccounts: (
+    accounts: StoredOtpAccount[]
+  ) => StoredOtpAccount[] | Promise<StoredOtpAccount[]>
 ): Promise<void> {
   try {
     await get().loadAccounts();
     await ensureNoPendingWrite(set);
 
+    const nextAccountsFromMutation = await getNextAccounts(get().accounts);
     const current = get();
-    const orderedAccounts = sortAccounts(getNextAccounts(current.accounts));
+    const orderedAccounts = sortAccounts(nextAccountsFromMutation);
     const nextIds = mergeAccountIds(
       current.accountIds,
       current.accounts.map(account => account.id),
@@ -397,16 +485,30 @@ async function persistMutation(
       return;
     }
 
-    const changedRecords = changedAccounts.map(toAccountRecord);
+    const previousById = new Map(
+      current.accounts.map(account => [account.id, account])
+    );
+    const changedRecords = nextAccounts
+      .filter(account => {
+        const previous = previousById.get(account.id);
+
+        return (
+          previous == null ||
+          JSON.stringify(toAccountRecord(previous)) !==
+            JSON.stringify(toAccountRecord(account))
+        );
+      })
+      .map(toAccountRecord);
     const changedSecrets = changedAccounts.filter(account => {
       const previousAccount = current.accounts.find(
         currentAccount => currentAccount.id === account.id
       );
 
       return (
-        previousAccount == null || previousAccount.secret !== account.secret
+        account.secret != null &&
+        (previousAccount == null || previousAccount.secret !== account.secret)
       );
-    });
+    }) as (StoredOtpAccount & { secret: string })[];
 
     if (changedSecrets.length > 1) {
       throw new Error('A single account write can only stage one secret.');
@@ -416,8 +518,14 @@ async function persistMutation(
     const journal = createWriteJournal(
       nextIds,
       changedRecords,
-      changedAccounts.map(({ id }) => id),
-      secretAccount?.id ?? null
+      [
+        ...new Set([
+          ...changedRecords.map(({ id }) => id),
+          ...changedSecrets.map(({ id }) => id)
+        ])
+      ],
+      secretAccount?.id ?? null,
+      !arraysEqual(nextIds, current.accountIds)
     );
 
     await saveAccountWriteJournal(journal);
@@ -447,10 +555,66 @@ async function persistMutation(
     await applyAccountWriteJournal(journal);
     commitHealthyMutation(set, nextIds, nextAccounts, current.damagedAccounts);
   } catch (cause) {
-    await refreshStoreSnapshot(set).catch(() => undefined);
+    if (!(cause instanceof DuplicateAccountSecretError)) {
+      await refreshStoreSnapshot(set).catch(() => undefined);
+    }
 
     throw toError(cause);
   }
+}
+
+async function loadSecretsForDuplicateCheck(
+  get: () => AccountsStoreState,
+  excludedId?: string
+): Promise<void> {
+  for (const account of [...get().accounts]) {
+    if (
+      account.id !== excludedId &&
+      account.secret == null &&
+      get().accounts.some(current => current.id === account.id)
+    ) {
+      await get().loadAccountSecret(account.id);
+    }
+  }
+}
+
+function moveAccountToDamaged(
+  set: AccountsStoreSet,
+  get: () => AccountsStoreState,
+  id: string,
+  reason: DamagedAccount['reason']
+): void {
+  const current = get();
+  const account = current.accounts.find(value => value.id === id);
+
+  if (account == null) {
+    set({ accountSecretLoading: omitKey(current.accountSecretLoading, id) });
+
+    return;
+  }
+
+  const damagedAccount: DamagedAccount = {
+    id,
+    record: toAccountRecord(account),
+    reason
+  };
+
+  set({
+    accounts: current.accounts.filter(value => value.id !== id),
+    damagedAccounts: orderDamagedAccounts(current.accountIds, [
+      ...current.damagedAccounts.filter(value => value.id !== id),
+      damagedAccount
+    ]),
+    accountSecretLoading: omitKey(current.accountSecretLoading, id)
+  });
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const next = { ...record };
+
+  delete next[key];
+
+  return next;
 }
 
 function commitSnapshot(
@@ -467,6 +631,7 @@ function commitSnapshot(
       withPendingWrite.accountIds,
       withPendingWrite.damagedAccounts
     ),
+    accountSecretLoading: {},
     error: null,
     isLoading: false,
     loadStatus: 'loaded'
@@ -476,13 +641,14 @@ function commitSnapshot(
 function commitHealthyMutation(
   set: AccountsStoreSet,
   accountIds: string[],
-  accounts: OtpAccount[],
+  accounts: StoredOtpAccount[],
   damagedAccounts: DamagedAccount[]
 ): void {
   set({
     accountIds,
     accounts: sortAccounts(accounts),
     damagedAccounts: orderDamagedAccounts(accountIds, damagedAccounts),
+    accountSecretLoading: {},
     error: null,
     isLoading: false,
     loadStatus: 'loaded'
@@ -530,7 +696,8 @@ function createWriteJournal(
   accountIds: string[],
   records: ReturnType<typeof toAccountRecord>[],
   affectedIds: string[],
-  secretAccountId: string | null
+  secretAccountId: string | null,
+  writeAccountIndex = true
 ): AccountWriteJournal {
   return {
     kind: 'write',
@@ -538,14 +705,15 @@ function createWriteJournal(
     affectedIds,
     records,
     secretAccountId,
-    removeAccountId: null
+    removeAccountId: null,
+    writeAccountIndex
   };
 }
 
 function getChangedAccounts(
-  nextAccounts: OtpAccount[],
-  previousAccounts: OtpAccount[]
-): OtpAccount[] {
+  nextAccounts: StoredOtpAccount[],
+  previousAccounts: StoredOtpAccount[]
+): StoredOtpAccount[] {
   const previousById = new Map(
     previousAccounts.map(account => [account.id, account])
   );
@@ -563,15 +731,15 @@ function getChangedAccounts(
 }
 
 function getChangedRecords(
-  nextAccounts: OtpAccount[],
-  previousAccounts: OtpAccount[]
+  nextAccounts: StoredOtpAccount[],
+  previousAccounts: StoredOtpAccount[]
 ): ReturnType<typeof toAccountRecord>[] {
   return getChangedAccounts(nextAccounts, previousAccounts).map(
     toAccountRecord
   );
 }
 
-function toAccountRecord(account: OtpAccount) {
+function toAccountRecord(account: StoredOtpAccount) {
   const { secret: _secret, ...record } = account;
 
   return record;
@@ -664,7 +832,7 @@ function addPendingWrite(
   };
 }
 
-function sortAccounts(accounts: OtpAccount[]): OtpAccount[] {
+function sortAccounts(accounts: StoredOtpAccount[]): StoredOtpAccount[] {
   return [...accounts].sort(
     (first, second) => first.sortOrder - second.sortOrder
   );

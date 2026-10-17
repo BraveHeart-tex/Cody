@@ -9,7 +9,7 @@ import {
   useTotpCountdown,
   type TotpPeriod
 } from '@/features/totp/hooks/use-totp-countdown';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
+import type { StoredOtpAccount } from '@/features/totp/model/totp-account';
 import { generateTotpCode } from '@/features/totp/model/totp-code';
 import * as Haptics from 'expo-haptics';
 import { CheckIcon, CopyIcon } from 'lucide-react-native';
@@ -27,9 +27,10 @@ const COPY_ERROR_MESSAGE = 'Couldn’t copy passcode. Try again.';
 type CopyAction = 'copy' | 'retry';
 
 interface AccountCardDetailsProps {
-  account: OtpAccount;
+  account: StoredOtpAccount;
   color: string;
   issuer: string;
+  isSecretLoading: boolean;
   period: TotpPeriod;
 }
 
@@ -37,6 +38,7 @@ export function AccountCardDetails({
   account,
   color,
   issuer,
+  isSecretLoading,
   period
 }: AccountCardDetailsProps) {
   const [isCopied, setIsCopied] = useState(false);
@@ -44,19 +46,22 @@ export function AccountCardDetails({
   const [hasCopyError, setHasCopyError] = useState(false);
   const copyPendingRef = useRef(false);
   const countdown = useTotpCountdown(period);
+  const secret = account.secret;
   const code = useMemo(
     () =>
-      generateTotpCode({
-        secret: account.secret,
-        algorithm: account.algorithm,
-        period,
-        digits: account.digits,
-        timestamp: countdown.periodStartedAt
-      }),
+      secret == null
+        ? ''
+        : generateTotpCode({
+            secret,
+            algorithm: account.algorithm,
+            period,
+            digits: account.digits,
+            timestamp: countdown.periodStartedAt
+          }),
     [
       account.algorithm,
       account.digits,
-      account.secret,
+      secret,
       countdown.periodStartedAt,
       period
     ]
@@ -128,18 +133,22 @@ export function AccountCardDetails({
             minimumFontScale={0.75}
             numberOfLines={1}
           >
-            {code || CODE_PLACEHOLDER}
+            {code || (isSecretLoading ? 'Loading passcode…' : CODE_PLACEHOLDER)}
           </Text>
           <Button
-            disabled={code.length === 0 || pendingAction != null}
+            disabled={
+              code.length === 0 || pendingAction != null || isSecretLoading
+            }
             accessibilityLabel={
-              code.length === 0
-                ? 'Passcode unavailable'
-                : pendingAction === 'copy'
-                  ? 'Copying passcode'
-                  : isCopied
-                    ? 'Passcode copied'
-                    : `Copy ${issuer} passcode`
+              isSecretLoading
+                ? 'Loading passcode'
+                : code.length === 0
+                  ? 'Passcode unavailable'
+                  : pendingAction === 'copy'
+                    ? 'Copying passcode'
+                    : isCopied
+                      ? 'Passcode copied'
+                      : `Copy ${issuer} passcode`
             }
             accessibilityState={{ busy: pendingAction === 'copy' }}
             onPress={handleCopyPress}

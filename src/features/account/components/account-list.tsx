@@ -8,7 +8,7 @@ import { AccountListSkeleton } from '@/features/account/components/account-list-
 import { AccountSearchInput } from '@/features/account/components/account-search-input';
 import { DamagedAccountCard } from '@/features/account/components/damaged-account-card';
 import { useAccounts } from '@/features/totp/hooks/use-accounts';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
+import type { StoredOtpAccount } from '@/features/totp/model/totp-account';
 import {
   CorruptAccountIndexError,
   type DamagedAccount
@@ -30,10 +30,12 @@ export function AccountList() {
   const {
     accounts,
     accountIds,
+    accountSecretLoading,
     damagedAccounts,
     deleteAccount,
     error,
     isLoading,
+    loadAccountSecret,
     removeDamagedAccount,
     retryAccount,
     retryLoad,
@@ -122,6 +124,8 @@ export function AccountList() {
         <AccountCard
           account={item.account}
           isActive={item.account.id === activeAccountId}
+          isSecretLoading={accountSecretLoading?.[item.account.id] ?? false}
+          onLoadSecret={loadAccountSecret}
           onDelete={handleAccountDelete}
           onMove={accounts.length > 1 ? handleMovePress : undefined}
           onPress={handleAccountPress}
@@ -129,10 +133,12 @@ export function AccountList() {
       ),
     [
       accounts.length,
+      accountSecretLoading,
       activeAccountId,
       handleAccountDelete,
       handleAccountPress,
       handleMovePress,
+      loadAccountSecret,
       removeDamagedAccount,
       retryAccount
     ]
@@ -215,12 +221,12 @@ export function AccountList() {
 }
 
 type AccountListItem =
-  | { kind: 'account'; account: OtpAccount }
+  | { kind: 'account'; account: StoredOtpAccount }
   | { kind: 'damaged'; account: DamagedAccount };
 
 function buildAccountListItems(
   accountIds: string[],
-  accounts: OtpAccount[],
+  accounts: StoredOtpAccount[],
   damagedAccounts: DamagedAccount[]
 ): AccountListItem[] {
   const accountsById = new Map(accounts.map(account => [account.id, account]));

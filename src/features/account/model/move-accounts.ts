@@ -1,4 +1,4 @@
-import type { OtpAccount } from '@/features/totp/model/totp-account';
+import type { StoredOtpAccount } from '@/features/totp/model/totp-account';
 
 export function scheduleAfterRender(callback: () => void): void {
   // Let Sortable finish its drag-end render before persisting the new order.
@@ -7,21 +7,21 @@ export function scheduleAfterRender(callback: () => void): void {
 }
 
 export function orderAccountsByIds(
-  accounts: OtpAccount[],
+  accounts: StoredOtpAccount[],
   orderedAccountIds: string[] | null
-): OtpAccount[] {
+): StoredOtpAccount[] {
   if (orderedAccountIds == null || orderedAccountIds.length === 0) {
     return accounts;
   }
 
-  const accountById = new Map<string, OtpAccount>();
+  const accountById = new Map<string, StoredOtpAccount>();
 
   for (const account of accounts) {
     accountById.set(account.id, account);
   }
 
   const orderedAccountIdSet = new Set<string>();
-  const result: OtpAccount[] = [];
+  const result: StoredOtpAccount[] = [];
 
   for (const id of orderedAccountIds) {
     const account = accountById.get(id);

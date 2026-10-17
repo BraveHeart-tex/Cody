@@ -8,7 +8,7 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { getAccountInitial } from '@/features/account/model/account-display';
 import { getAccountColor } from '@/features/totp/model/account-colors';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
+import type { StoredOtpAccount } from '@/features/totp/model/totp-account';
 import { GripVerticalIcon } from 'lucide-react-native';
 import { memo, useMemo } from 'react';
 import { View, type ViewStyle } from 'react-native';
@@ -17,7 +17,7 @@ import Sortable from 'react-native-sortables';
 export const MoveAccountCard = memo(function MoveAccountCard({
   account
 }: {
-  account: OtpAccount;
+  account: StoredOtpAccount;
 }) {
   const color = getAccountColor(account);
   const issuer = account.issuer || 'Unknown issuer';

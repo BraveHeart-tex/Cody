@@ -200,6 +200,28 @@ describe('AccountCard', () => {
     expect(getByTestId('account-card-progress')).toBeTruthy();
   });
 
+  it('requests a missing secret when expanded', async () => {
+    const onLoadSecret = jest.fn<() => Promise<void>>().mockResolvedValue();
+    const { secret: _secret, ...metadata } = account;
+    const { getByLabelText, getByText } = await render(
+      <AccountCard
+        account={metadata}
+        isActive
+        isSecretLoading
+        onDelete={jest.fn()}
+        onLoadSecret={onLoadSecret}
+        onPress={jest.fn()}
+      />
+    );
+
+    expect(getByText('Loading passcode…')).toBeTruthy();
+    expect(getByLabelText('Loading passcode')).toBeTruthy();
+
+    await waitFor(() => {
+      expect(onLoadSecret).toHaveBeenCalledWith(account.id);
+    });
+  });
+
   it('calls onMove from the active account actions', async () => {
     const onMove = jest.fn();
     const { getByText } = await render(

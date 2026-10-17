@@ -1,6 +1,5 @@
 import { canGenerateTotpCode } from '@/features/totp/model/totp-code';
 import { normalizeAccountSecret } from '@/features/totp/model/account-secret';
-import type { OtpAccount } from '@/features/totp/model/totp-account';
 
 export { normalizeAccountSecret as normalizeManualSecret };
 
@@ -27,7 +26,7 @@ const BASE32_SECRET = /^[A-Z2-7]+=*$/;
 
 export function validateManualAccount(
   values: ManualAccountFormValues,
-  accounts: Pick<OtpAccount, 'secret'>[]
+  accounts: { secret?: string }[]
 ): ManualAccountValidationResult {
   const issuer = values.issuer.trim();
   const label = values.label.trim();
@@ -63,7 +62,9 @@ export function validateManualAccount(
   }
 
   const isDuplicate = accounts.some(
-    account => normalizeAccountSecret(account.secret) === secret
+    account =>
+      account.secret != null &&
+      normalizeAccountSecret(account.secret) === secret
   );
 
   if (isDuplicate) {
