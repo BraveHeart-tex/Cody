@@ -28,6 +28,26 @@ export function validateManualAccount(
   values: ManualAccountFormValues,
   accounts: { secret?: string }[]
 ): ManualAccountValidationResult {
+  return validateManualAccountWithTotp(
+    values,
+    getManualAccountSecretSet(accounts)
+  );
+}
+
+export function getManualAccountSecretSet(
+  accounts: { secret?: string }[]
+): ReadonlySet<string> {
+  return new Set(
+    accounts.flatMap(account =>
+      account.secret == null ? [] : [normalizeAccountSecret(account.secret)]
+    )
+  );
+}
+
+export function validateManualAccountBasics(
+  values: ManualAccountFormValues,
+  existingSecrets: ReadonlySet<string>
+): ManualAccountValidationResult {
   const issuer = values.issuer.trim();
   const label = values.label.trim();
   const secret = normalizeAccountSecret(values.secret);
@@ -47,27 +67,7 @@ export function validateManualAccount(
     );
   }
 
-  if (
-    !canGenerateTotpCode({
-      secret,
-      algorithm: 'SHA1',
-      period: values.period,
-      digits: values.digits
-    })
-  ) {
-    return invalid(
-      { issuer, label, secret },
-      'Enter a valid authenticator secret.'
-    );
-  }
-
-  const isDuplicate = accounts.some(
-    account =>
-      account.secret != null &&
-      normalizeAccountSecret(account.secret) === secret
-  );
-
-  if (isDuplicate) {
+  if (existingSecrets.has(secret)) {
     return invalid({ issuer, label, secret }, 'This account is already saved.');
   }
 
@@ -78,6 +78,30 @@ export function validateManualAccount(
     error: null,
     isValid: true
   };
+}
+
+export function validateManualAccountWithTotp(
+  values: ManualAccountFormValues,
+  existingSecrets: ReadonlySet<string>
+): ManualAccountValidationResult {
+  const basicValidation = validateManualAccountBasics(values, existingSecrets);
+
+  if (!basicValidation.isValid) {
+    return basicValidation;
+  }
+
+  if (
+    !canGenerateTotpCode({
+      secret: basicValidation.secret,
+      algorithm: 'SHA1',
+      period: values.period,
+      digits: values.digits
+    })
+  ) {
+    return invalid(basicValidation, 'Enter a valid authenticator secret.');
+  }
+
+  return basicValidation;
 }
 
 function invalid(

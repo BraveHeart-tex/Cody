@@ -11,7 +11,9 @@ import { useAccounts } from '@/features/totp/hooks/use-accounts';
 import { createManualOtpAccount } from '@/features/totp/model/create-account';
 import { DuplicateAccountSecretError } from '@/features/totp/model/account-errors';
 import {
-  validateManualAccount,
+  getManualAccountSecretSet,
+  validateManualAccountBasics,
+  validateManualAccountWithTotp,
   type ManualTotpDigits,
   type ManualTotpPeriod
 } from '@/features/totp/model/manual-account';
@@ -32,6 +34,10 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
   const [digits, setDigits] = useState<ManualTotpDigits>(6);
   const [isSecretVisible, setIsSecretVisible] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [totpValidation, setTotpValidation] = useState<{
+    key: string;
+    error: string | null;
+  } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -40,9 +46,13 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
     account: ReturnType<typeof createManualOtpAccount>;
   } | null>(null);
 
+  const existingSecrets = useMemo(
+    () => getManualAccountSecretSet(accounts),
+    [accounts]
+  );
   const validation = useMemo(
     () =>
-      validateManualAccount(
+      validateManualAccountBasics(
         {
           issuer,
           label,
@@ -50,10 +60,17 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
           period,
           digits
         },
-        accounts
+        existingSecrets
       ),
-    [accounts, digits, issuer, label, period, secret]
+    [digits, existingSecrets, issuer, label, period, secret]
   );
+  const totpValidationKey = JSON.stringify({
+    secret: validation.secret,
+    digits,
+    period
+  });
+  const totpValidationError =
+    totpValidation?.key === totpValidationKey ? totpValidation.error : null;
 
   const storageError =
     error == null
@@ -61,11 +78,15 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       : 'Cody could not read the saved accounts. Retry to try again.';
   const validationError =
     hasSubmitted || label.length > 0 || secret.length > 0
-      ? validation.error
+      ? (validation.error ?? totpValidationError)
       : null;
   const statusMessage = saveError ?? storageError ?? validationError;
   const isSubmitDisabled =
-    isLoading || isSaving || storageError != null || !validation.isValid;
+    isLoading ||
+    isSaving ||
+    storageError != null ||
+    !validation.isValid ||
+    totpValidationError != null;
 
   const handleRetry = useCallback(async () => {
     if (isRetrying) {
@@ -84,6 +105,31 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
     }
   }, [isRetrying, retryLoad]);
 
+  const handleSecretBlur = useCallback(() => {
+    if (!validation.isValid) {
+      return;
+    }
+
+    const checked = validateManualAccountWithTotp(
+      { issuer, label, secret, period, digits },
+      existingSecrets
+    );
+
+    setTotpValidation({
+      key: totpValidationKey,
+      error: checked.error
+    });
+  }, [
+    digits,
+    existingSecrets,
+    issuer,
+    label,
+    period,
+    secret,
+    totpValidationKey,
+    validation.isValid
+  ]);
+
   const handleSubmit = useCallback(async () => {
     setHasSubmitted(true);
     setSaveError(null);
@@ -92,10 +138,24 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       return;
     }
 
+    const submitValidation = validateManualAccountWithTotp(
+      { issuer, label, secret, period, digits },
+      existingSecrets
+    );
+
+    if (!submitValidation.isValid) {
+      setTotpValidation({
+        key: totpValidationKey,
+        error: submitValidation.error
+      });
+
+      return;
+    }
+
     const inputKey = JSON.stringify({
-      issuer: validation.issuer,
-      label: validation.label,
-      secret: validation.secret,
+      issuer: submitValidation.issuer,
+      label: submitValidation.label,
+      secret: submitValidation.secret,
       digits,
       period
     });
@@ -103,9 +163,9 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
       pendingSave.current?.key === inputKey
         ? pendingSave.current.account
         : createManualOtpAccount({
-            issuer: validation.issuer,
-            label: validation.label,
-            secret: validation.secret,
+            issuer: submitValidation.issuer,
+            label: submitValidation.label,
+            secret: submitValidation.secret,
             digits,
             period
           });
@@ -126,7 +186,18 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [addAccount, digits, isSubmitDisabled, onSaved, period, validation]);
+  }, [
+    addAccount,
+    digits,
+    existingSecrets,
+    isSubmitDisabled,
+    issuer,
+    label,
+    onSaved,
+    period,
+    secret,
+    totpValidationKey
+  ]);
 
   return (
     <ScrollView
@@ -172,7 +243,11 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
                 autoCorrect={false}
                 importantForAutofill="no"
                 keyboardType="default"
-                onChangeText={value => setSecret(value.toUpperCase())}
+                onChangeText={value => {
+                  setSecret(value.toUpperCase());
+                  setTotpValidation(null);
+                }}
+                onBlur={handleSecretBlur}
                 placeholder="JBSW Y3DP EHPK 3PXP"
                 secureTextEntry={!isSecretVisible}
                 textContentType="none"
@@ -199,7 +274,10 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
             options={PERIOD_OPTIONS}
             selectedValue={period}
             suffix=" sec"
-            onSelect={setPeriod}
+            onSelect={value => {
+              setPeriod(value);
+              setTotpValidation(null);
+            }}
           />
         </Field>
 
@@ -207,7 +285,10 @@ export function ManualAddAccountForm({ onSaved }: ManualAddAccountFormProps) {
           <SegmentedControl
             options={DIGIT_OPTIONS}
             selectedValue={digits}
-            onSelect={setDigits}
+            onSelect={value => {
+              setDigits(value);
+              setTotpValidation(null);
+            }}
           />
         </Field>
       </View>
